@@ -116,5 +116,54 @@ class Memory(Base):
             L.set_status("RSG0003", "nonsense")
 
 
+class Schedule(Base):
+    A, Y, T, P = (L.SCHED["accounts"][k] for k in ("instagram", "youtube", "threads", "pinterest"))
+
+    def setUp(self):
+        open(L.p("scheduled.jsonl"), "w").close()
+        for tid, st in (("RSG0001", "qa_ok"), ("RSG0002", "approved")):
+            L.set_status(tid, st)
+            open(L.p("out", tid + ".mp4"), "wb").write(b"x")
+
+    def tearDown(self):
+        for tid in ("RSG0001", "RSG0002"):
+            os.remove(L.p("out", tid + ".mp4"))
+
+    def test_board_approved_first_then_qa_ok(self):
+        pl = L.plan(L.dt.date(2030, 1, 1), 1)
+        self.assertEqual([(f["publishAt"], f["reel"]) for f in pl["fills"]],
+                         [("2030-01-01T13:00:00Z", "RSG0002"), ("2030-01-01T20:00:00Z", "RSG0001")])
+        self.assertEqual(pl["short"], [])
+        self.assertEqual(L.plan(L.dt.date(2030, 1, 1), 2)["short"], ["2030-01-02T13:00:00Z", "2030-01-02T20:00:00Z"])
+
+    def test_scheduled_reel_is_not_reused_and_subject_cools_down(self):
+        L.append("scheduled.jsonl", {"id": "RSG0002", "subject": "Timothée Chalamet", "publishAt": "2030-01-01T13:00:00Z", "groupId": "g1", "platforms": ["ig", "yt", "threads", "pinterest"]})
+        pl = L.plan(L.dt.date(2030, 1, 1), 2)
+        self.assertEqual([f["reel"] for f in pl["fills"]], ["RSG0001"])
+        self.assertEqual(len(pl["short"]), 2)
+
+    def test_calendar_gaps_mixing_and_missing(self):
+        L.append("scheduled.jsonl", {"id": "RSG0002", "subject": "Timothée Chalamet", "publishAt": "2030-01-01T13:00:00Z", "groupId": "g1", "platforms": ["ig", "yt"]})
+        L.append("scheduled.jsonl", {"id": "RSG0009", "subject": "Nobody", "publishAt": "2030-01-02T13:00:00Z", "groupId": "gone", "platforms": ["ig"]})
+        acc = lambda i, prov, st="QUEUE": {"provider": prov, "account": {"id": i}, "state": st, "error": None}
+        cal = {"posts": [
+            {"groupId": "g1", "publishAt": "2030-01-01T13:00:00.000Z", "media": [{"url": "https://x/a.mp4"}], "posts": [acc(self.A, "instagram"), acc(self.Y, "youtube")]},
+            {"groupId": "fm", "publishAt": "2030-01-01T20:00:00.000Z", "media": [{"url": "https://reel-remotion.w/publish/F0170/F0170.mp4"}], "posts": [acc(self.A, "instagram")]}]}
+        f = L.p("tmp-cal.json")
+        json.dump({"content": [{"type": "text", "text": json.dumps(cal)}]}, open(f, "w"))
+        pl = L.plan(L.dt.date(2030, 1, 1), 2, f)
+        self.assertEqual(pl["gaps"], [{"reel": "RSG0002", "publishAt": "2030-01-01T13:00:00Z", "missing": ["threads", "pinterest"]}])
+        self.assertTrue(any(n.startswith("MIXING 2030-01-01T20:00:00Z") for n in pl["notes"]))
+        self.assertTrue(any(n.startswith("MISSING 2030-01-02T13:00:00Z RSG0009") for n in pl["notes"]))
+        self.assertEqual(pl["fills"][0], {"reel": "RSG0001", "publishAt": "2030-01-01T20:00:00Z", "status": "qa_ok", "subject": "Barry Keoghan"})
+
+    def test_caption(self):
+        c = L.caption(seed_topic("RSG0001")).split("\n")
+        self.assertEqual(c[0], "Why does Barry Keoghan look so attractive?")
+        self.assertTrue(c[1].endswith("Comment who I should break down next."))
+        self.assertTrue(c[2].endswith("AI-edited images."))
+        self.assertLessEqual(len(c[3].split()), 5)
+
+
 if __name__ == "__main__":
     unittest.main()

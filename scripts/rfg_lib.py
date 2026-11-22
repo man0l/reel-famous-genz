@@ -15,7 +15,7 @@ WIKI_UA = "reel-famous-genz/1.0 (Paperclip; face-breakdown reels)"
 CFG = json.load(open(os.path.join(PACK, "config.json"), encoding="utf-8"))
 HOOKS = json.load(open(os.path.join(PACK, "hooks.json"), encoding="utf-8"))
 TOPIC_COLS = ["id", "template", "subject", "status", "hook", "updated", "notes"]
-STATUSES = ["idea", "ready", "restyled", "scripted", "voiced", "rendered", "approved", "posted", "dropped"]
+STATUSES = ["idea", "ready", "restyled", "scripted", "voiced", "rendered", "qa_ok", "approved", "scheduled", "posted", "dropped"]
 
 
 class Fatal(Exception):
@@ -639,3 +639,253 @@ def next_topic():
     ready = [r for r in topics() if r["status"] in ("ready", "restyled", "scripted", "voiced") and slug(r["subject"]) not in recent]
     ready.sort(key=lambda r: (used.get(r["template"], 0), STATUSES.index(r["status"]) * -1, r["id"]))
     return ready[0] if ready else None
+
+
+# ---------- schedule (all four jenny accounts, one day ahead) ----------
+SCHED = CFG["schedule"]
+
+
+def ff(tool):
+    """ffmpeg/ffprobe: the system one, else the binary that ships with the skill's Remotion runtime."""
+    if shutil.which(tool):
+        return [tool], dict(os.environ)
+    d = os.path.join(CFG["render"]["vps_runtime"].format(company=COMPANY), "app", "node_modules", "@remotion", "compositor-linux-x64-gnu")
+    if not os.path.exists(os.path.join(d, tool)):
+        raise Fatal("no %s on PATH or in %s (render once to build the runtime)" % (tool, d))
+    return [os.path.join(d, tool)], dict(os.environ, LD_LIBRARY_PATH=d)
+
+
+def probe(path):
+    cmd, env = ff("ffprobe")
+    out = subprocess.run(cmd + ["-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height", "-of", "json", path],
+                         env=env, capture_output=True, text=True)
+    if out.returncode != 0:
+        raise Fatal("ffprobe %s: %s" % (path, out.stderr.strip()[:200]))
+    return json.loads(out.stdout)
+
+
+def make_cover(tid):
+    """9:16 JPEG from the hook frame, used as the IG cover and the YT/Pinterest thumbnail."""
+    out = p("out", tid + "_cover.jpg")
+    cmd, env = ff("ffmpeg")
+    subprocess.run(cmd + ["-v", "error", "-y", "-ss", str(SCHED["cover_at_s"]), "-i", p("out", tid + ".mp4"), "-frames:v", "1", "-q:v", "3", out],
+                   env=env, check=True)
+    return out
+
+
+def qa(tid):
+    """Automated QA of a rendered reel: lint, 1080x1920 with audio, length matches the voice track, cover under 2 MB. Returns problems."""
+    t = topic(tid)
+    bad = []
+    mp4 = p("out", tid + ".mp4")
+    if not os.path.exists(mp4):
+        return ["no out/%s.mp4" % tid]
+    sf = p("work", tid, "script.json")
+    s = json.load(open(sf, encoding="utf-8")) if os.path.exists(sf) else build_script(t)
+    bad += ["lint: " + x for x in lint_script(s, t)]
+    info = probe(mp4)
+    v = [x for x in info.get("streams", []) if x.get("codec_type") == "video"]
+    if not v or (v[0].get("width"), v[0].get("height")) != (1080, 1920):
+        bad.append("video is not 1080x1920: %s" % (v[0] if v else "no video stream"))
+    if not any(x.get("codec_type") == "audio" for x in info.get("streams", [])):
+        bad.append("no audio stream")
+    dur = float(info.get("format", {}).get("duration") or 0)
+    if not 20 <= dur <= 60:
+        bad.append("length %.1f s is outside 20-60 s" % dur)
+    df = p("work", tid, "durations.json")
+    if os.path.exists(df):
+        voice = sum(json.load(open(df)))
+        if dur < voice:
+            bad.append("length %.1f s is shorter than the voice track %.1f s (truncated render)" % (dur, voice))
+    if not bad:
+        cover = make_cover(tid)
+        if not 0 < os.path.getsize(cover) < 2e6:
+            bad.append("cover %s is empty or over 2 MB" % cover)
+    return bad
+
+
+def caption(t):
+    """Post text: hook / features + card + CTA / photo credit + AI-edited / hashtags. A topic's own `caption` (line 2) and `tags` win."""
+    s = json.load(open(p("work", t["id"], "script.json"), encoding="utf-8")) if os.path.exists(p("work", t["id"], "script.json")) else build_script(t)
+    hook = s["beats"][0]["vo"]
+    pr = pron(t)
+    if t.get("caption"):
+        body = t["caption"].strip()
+    else:
+        labels = [f["label"].replace(" + ", " and ").replace(",", "").lower() for f in t["features"]]
+        body = (", ".join(labels[:-1]) + " and " + labels[-1] if len(labels) > 1 else labels[0])
+        body = body[0].upper() + body[1:] + "."
+    card = t.get("card") or {}
+    if card.get("ovr"):
+        body += " %s face card comes out at %d." % (pr["his"].capitalize(), card["ovr"])
+    body += " " + (t.get("cta") or {}).get("vo", "Comment who I should break down next.")
+    credits = [t["photo"]["credit"]] if (t.get("photo") or {}).get("credit") else []
+    for f in t.get("features") or []:
+        c = (subjects().get(slug(f.get("subject") or "")) or {}).get("credit")
+        if c and c not in credits:
+            credits.append(c)
+    photo = ("Photo: %s, via Wikimedia Commons. " % "; ".join(credits)) if credits else ""
+    tags = t.get("tags") or (["#" + re.sub(r"[^a-z0-9]", "", slug(t["subject"]))] if t.get("subject") else []) + SCHED["tags"]
+    return "\n".join([hook, body, photo + CFG["footer"] + ".", " ".join(tags[:5])])
+
+
+def hosted():
+    try:
+        return json.load(open(p("state", "hosted.json")))
+    except Exception:
+        return {}
+
+
+def gh_api(args, body=None):
+    cmd = ["gh", "api"] + args
+    if body is not None:
+        f = p("tmp", "gh-%d.json" % os.getpid())
+        os.makedirs(p("tmp"), exist_ok=True)
+        json.dump(body, open(f, "w"))
+        cmd += ["--input", f]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if body is not None:
+        os.remove(f)
+    return r.returncode, (json.loads(r.stdout) if r.stdout.strip().startswith(("{", "[")) else {}), r.stderr
+
+
+def host(tid):
+    """Push out/<id>.mp4 + cover to the media branch; returns jsDelivr URLs pinned to the commit (Slashloop needs a video/mp4 type)."""
+    repo, br = SCHED["media_repo"], SCHED["media_branch"]
+    h = hosted()
+    if tid in h:
+        return h[tid]
+    sha = None
+    for local, name in ((p("out", tid + ".mp4"), tid + ".mp4"), (p("out", tid + "_cover.jpg"), tid + "_cover.jpg")):
+        if not os.path.exists(local):
+            raise Fatal("%s missing (run qa first)" % local)
+        rc, cur, _ = gh_api(["repos/%s/contents/%s?ref=%s" % (repo, name, br)])
+        if rc == 0 and cur.get("size") == os.path.getsize(local):
+            continue
+        body = {"message": "media: %s (%s)" % (name, tid), "branch": br, "content": base64.b64encode(open(local, "rb").read()).decode()}
+        if rc == 0 and cur.get("sha"):
+            body["sha"] = cur["sha"]
+        rc, res, err = gh_api(["-X", "PUT", "repos/%s/contents/%s" % (repo, name)], body)
+        if rc != 0:
+            raise Fatal("push %s to %s@%s failed: %s" % (name, repo, br, err.strip()[:300]))
+        sha = res["commit"]["sha"]
+    if not sha:
+        rc, res, err = gh_api(["repos/%s/commits/%s" % (repo, br)])
+        if rc != 0:
+            raise Fatal("read %s@%s: %s" % (repo, br, err.strip()[:300]))
+        sha = res["sha"]
+    base = "https://cdn.jsdelivr.net/gh/%s@%s/" % (repo, sha)
+    h[tid] = {"mp4": base + tid + ".mp4", "cover": base + tid + "_cover.jpg", "commit": sha, "t": now()}
+    os.makedirs(p("state"), exist_ok=True)
+    json.dump(h, open(p("state", "hosted.json"), "w"), indent=1)
+    return h[tid]
+
+
+def slot_times(start, days):
+    """Posting slots in the window, minus any less than 30 min away (Slashloop needs lead time)."""
+    soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return [x for x in ["%sT%s:00Z" % ((start + dt.timedelta(days=d)).isoformat(), hm) for d in range(days) for hm in SCHED["slots_utc"]] if x > soon]
+
+
+def calendar_groups(posts_file):
+    """Groups from a saved list_social_posts result (raw, wrapped in the MCP content envelope, or {lane: result})."""
+    if not posts_file:
+        return []
+    d = json.load(open(posts_file, encoding="utf-8"))
+    if isinstance(d, dict) and "content" in d and isinstance(d["content"], list):
+        d = json.loads(d["content"][0]["text"])
+    if isinstance(d, dict) and "posts" not in d:
+        return [g for v in d.values() if isinstance(v, dict) for g in v.get("posts", [])]
+    return d.get("posts", []) if isinstance(d, dict) else d
+
+
+def iso(x):
+    return dt.datetime.fromisoformat(x.replace("Z", "+00:00")).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def plan(start, days, posts_file=None):
+    """Slots in the window: who fills them, which accounts are missing, and which postable reel goes into each empty slot."""
+    acc = SCHED["accounts"]
+    ours = set(acc.values())
+    sched = jsonl("scheduled.jsonl")
+    by_group = {r["groupId"]: r for r in sched}
+    cal = calendar_groups(posts_file)
+    have = {}  # slot -> {reel id: set(account ids)}
+    notes = []
+    if cal:
+        for g in cal:
+            at = iso(g["publishAt"])
+            mine = [x for x in g.get("posts", []) if x["account"]["id"] in ours]
+            if not mine:
+                continue
+            urls = " ".join(m.get("url", "") for m in g.get("media", []))
+            rid = (by_group.get(g["groupId"]) or {}).get("id")
+            if not rid and "/publish/F" in urls:
+                notes.append("MIXING %s group %s: facemetric media on the genz accounts (%s)" % (at, g["groupId"], urls[:120]))
+                continue
+            rid = rid or "?" + g["groupId"][:8]
+            bad = [x for x in mine if x.get("state") == "ERROR" or x.get("error")]
+            if bad:
+                notes.append("ERROR %s %s: %s" % (at, rid, "; ".join("%s %s" % (x["provider"], x.get("error")) for x in bad)))
+            have.setdefault(at, {}).setdefault(rid, set()).update(x["account"]["id"] for x in mine if not (x.get("state") == "ERROR" or x.get("error")))
+        listed = {g["groupId"] for g in cal}
+        for r in sched:
+            if r["groupId"] not in listed and iso(r["publishAt"]) in slot_times(start, days):
+                notes.append("MISSING %s %s: group %s is in scheduled.jsonl but not on the calendar (deleted?)" % (iso(r["publishAt"]), r["id"], r["groupId"]))
+    else:
+        names = {"ig": acc["instagram"], "yt": acc["youtube"], "threads": acc["threads"], "pinterest": acc["pinterest"]}
+        for r in sched:
+            have.setdefault(iso(r["publishAt"]), {}).setdefault(r["id"], set()).update(names.get(x, x) for x in r.get("platforms", []))
+    used_ids = {r["id"] for r in sched}
+    cool = dt.timedelta(days=CFG["rotation"]["subject_cooldown_days"])
+    taken_subj = {slug(r["subject"]): iso(r["publishAt"]) for r in sched}
+    rows = {r["id"]: r for r in topics()}
+    pool = [r for r in topics() if r["status"] in SCHED["postable"] and r["id"] not in used_ids and os.path.exists(p("out", r["id"] + ".mp4"))]
+    pool.sort(key=lambda r: (SCHED["postable"].index(r["status"]), r["id"]))  # board-approved first
+    fills, gaps, short = [], [], []
+    for at in slot_times(start, days):
+        reels = have.get(at, {})
+        if reels:
+            for rid, got in reels.items():
+                miss = [k for k, v in acc.items() if v not in got]
+                if miss and not rid.startswith("?"):
+                    gaps.append({"reel": rid, "publishAt": at, "missing": miss})
+            continue
+        pick = None
+        for r in pool:
+            last = taken_subj.get(slug(r["subject"]))
+            if last and abs(dt.datetime.fromisoformat(at.replace("Z", "+00:00")) - dt.datetime.fromisoformat(last.replace("Z", "+00:00"))) < cool:
+                continue
+            pick = r
+            break
+        if pick:
+            pool.remove(pick)
+            taken_subj[slug(pick["subject"])] = at
+            fills.append({"reel": pick["id"], "publishAt": at, "status": pick["status"], "subject": pick["subject"]})
+        else:
+            short.append(at)
+    return {"fills": fills, "gaps": gaps, "short": short, "notes": notes, "pool_left": [r["id"] for r in pool], "rows": rows}
+
+
+def payload(tid, at, missing=None):
+    """One create_social_post call for a reel on all four accounts (or only the missing ones). Media URLs still go through upload_social_media."""
+    t = topic(tid)
+    h = host(tid)
+    acc = SCHED["accounts"]
+    ids = [acc[k] for k in (missing or acc)]
+    out = {"reel": tid, "publishAt": at, "integrationIds": ids, "content": caption(t),
+           "upload": {"video": h["mp4"], "thumbnail": h["cover"]},
+           "media": [{"type": "video", "url": "<upload_social_media(upload.video)>", "thumbnail": "<upload_social_media(upload.thumbnail)>"}]}
+    if acc["pinterest"] in ids:
+        out["settings"] = {acc["pinterest"]: {"boardId": SCHED["pinterest_board"]}}
+    return out
+
+
+def supply(start, days=3):
+    """Reels that can still be posted vs open slots from `start` for `days`; plus the next topics to make."""
+    pl = plan(start, days)
+    blocked = SCHED["blocked_templates"]
+    todo = [r for r in topics() if r["status"] in ("idea", "ready", "restyled", "scripted", "voiced", "rendered") and r["template"] not in blocked]
+    todo.sort(key=lambda r: (-STATUSES.index(r["status"]), r["id"]))
+    return {"open": len(pl["short"]), "ready_left": pl["pool_left"], "next": [(r["id"], r["template"], r["subject"], r["status"]) for r in todo],
+            "blocked": [(r["id"], r["template"], blocked[r["template"]]) for r in topics() if r["template"] in blocked and r["status"] not in ("posted", "dropped")]}

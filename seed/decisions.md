@@ -9,7 +9,7 @@ Read this before writing any topic or script. These rules come from Manol, the b
 5. **Payoff = the game card:** OVR plus EYE JAW SYM NOS BRW SKN, rarity RARE/HERO/GOLD/ICON. Never a score out of 10.
 6. **CTA = a comment prompt** ("Comment who I should break down next."). No app, no link, no "comment link".
 7. **Photos:** Wikimedia Commons only, with a per-image credit (author and licence) on screen, plus "AI-edited images". The portrait is a painted restyle, never the raw photo.
-8. **Nothing gets posted** without the board approving the rendered MP4 (`rfg.sh approve <id>`). Nothing from this skill is merged into reel-factory (PR #97 closed unmerged, 22 Nov 2026).
+8. **Posting is automatic** (board, 22 Nov 2026 15:57 UTC: a daily routine like reel-factory's that schedules one day ahead and does not stop when a step fails). A reel is posted once it passes `rfg.sh qa`; board-approved reels go first. Every reel is on the calendar at least a day ahead, so the board can veto it; a vetoed reel is set to `dropped` and its queued group deleted. (Until 22 Nov the board approved each MP4.) Nothing from this skill is merged into reel-factory (PR #97 closed unmerged, 22 Nov 2026).
 9. **Rendering:** the skill's own Remotion engine in `engine/` (composition `genz-face` only), on this server. Nothing in reel-factory is used or changed (22 Nov 2026). The skill is only for genz-face: no qoves or facemetric code, compositions or runtime are copied in; those stay in reel-factory (board, 22 Nov 2026). The render runtime is the skill's own (`$RFG_HOME/remotion-runtime/`).
 10. **Lines:** every spoken sentence is under 14 words; plain English; no looksmaxxing vocabulary (canthal, mogging, mewing, PSL, chad); no health, surgery, age or ethnicity claims.
 

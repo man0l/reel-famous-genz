@@ -1,5 +1,5 @@
 """rfg.sh <command> ...  (see SKILL.md). Every command reads and writes the skill's own data home ($RFG_HOME)."""
-import argparse, concurrent.futures as cf, json, os, sys
+import argparse, concurrent.futures as cf, datetime as dt, json, os, sys
 import rfg_lib as L
 from rfg_lib import Fatal, log, p
 
@@ -152,6 +152,71 @@ def cmd_learn(a):
     log("added to learnings.md")
 
 
+def day(s):
+    return dt.date.fromisoformat(s) if s else dt.datetime.now(dt.timezone.utc).date() + dt.timedelta(days=1)
+
+
+def cmd_qa(a):
+    bad = L.qa(a.id)
+    if bad:
+        log("QA FAIL %s: %s" % (a.id, "; ".join(bad)))
+        return 3
+    if [r for r in L.topics() if r["id"] == a.id and r["status"] == "rendered"]:
+        L.set_status(a.id, "qa_ok")
+    log("QA PASS %s (cover out/%s_cover.jpg)" % (a.id, a.id))
+
+
+def cmd_host(a):
+    h = L.host(a.id)
+    log("%s video %s\n%s cover %s" % (a.id, h["mp4"], a.id, h["cover"]))
+
+
+def cmd_plan(a):
+    pl = L.plan(day(a.start), a.days, a.posts)
+    for n in pl["notes"]:
+        log(n)
+    for g in pl["gaps"]:
+        log("GAP %s %s: missing %s" % (g["publishAt"], g["reel"], ", ".join(g["missing"])))
+    for f in pl["fills"]:
+        log("FILL %s %s (%s, %s)" % (f["publishAt"], f["reel"], f["subject"], f["status"]))
+    for s in pl["short"]:
+        log("SHORT %s: no postable reel left (make one: rfg.sh supply)" % s)
+    if a.cmd != "schedule":
+        return 1 if pl["short"] else 0
+    out = []
+    for f in pl["fills"]:
+        bad = L.qa(f["reel"])
+        if bad:
+            log("SKIP %s: QA FAIL %s" % (f["reel"], "; ".join(bad)))
+            continue
+        out.append(L.payload(f["reel"], f["publishAt"]))
+    for g in pl["gaps"]:
+        out.append(L.payload(g["reel"], g["publishAt"], g["missing"]))
+    f = p("state", "schedule-%s.json" % L.now()[:10])
+    json.dump({"start": str(day(a.start)), "days": a.days, "posts": out, "short": pl["short"], "notes": pl["notes"]}, open(f, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    log("wrote %s: %d create_social_post payload(s)" % (f, len(out)))
+    return 1 if pl["short"] else 0
+
+
+def cmd_scheduled(a):
+    t = L.topic(a.id)
+    rec = {"id": a.id, "subject": t["subject"], "publishAt": a.at, "groupId": a.group, "platforms": a.platforms.split(","), "media": a.media, "cover": a.cover, "t": L.now()}
+    L.append("scheduled.jsonl", rec)
+    if [r for r in L.topics() if r["id"] == a.id and r["status"] in ("qa_ok", "approved", "rendered")]:
+        L.set_status(a.id, "scheduled")
+    log("%s recorded: %s group %s" % (a.id, a.at, a.group))
+
+
+def cmd_supply(a):
+    s = L.supply(day(a.start), a.days)
+    log("open slots from %s for %d days: %d; postable reels not yet scheduled: %s" % (day(a.start), a.days, s["open"], " ".join(s["ready_left"]) or "none"))
+    for r in s["next"]:
+        log("  next to make: %s %-3s %s (%s)" % r)
+    for r in s["blocked"]:
+        log("  blocked: %s %-3s %s" % r)
+    log("SUPPLY OK" if not s["open"] else "SUPPLY WARN: %d slot(s) open, make %d reel(s)" % (s["open"], s["open"]))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="rfg.sh")
     sp = ap.add_subparsers(dest="cmd", required=True)
@@ -166,10 +231,17 @@ def main(argv=None):
     q = sp.add_parser("posted"); q.add_argument("id"); q.add_argument("--platform", required=True); q.add_argument("--url", default="")
     q = sp.add_parser("stats"); q.add_argument("id"); q.add_argument("--views", type=int)
     q = sp.add_parser("learn"); q.add_argument("text")
+    for name in ("qa", "host"):
+        sp.add_parser(name).add_argument("id")
+    for name in ("plan", "schedule", "supply"):
+        q = sp.add_parser(name); q.add_argument("--start", help="first day, YYYY-MM-DD (default: tomorrow UTC)")
+        q.add_argument("--days", type=int, default=3 if name == "supply" else 1); q.add_argument("--posts", help="saved list_social_posts result")
+    q = sp.add_parser("scheduled"); q.add_argument("id"); q.add_argument("--at", required=True); q.add_argument("--group", required=True)
+    q.add_argument("--platforms", default="ig,yt,threads,pinterest"); q.add_argument("--media", default=""); q.add_argument("--cover", default="")
     a = ap.parse_args(argv)
     if a.cmd != "init" and not os.path.exists(p("topics.csv")):
         raise Fatal("data home %s is not initialised: run `rfg.sh init`" % L.HOME)
-    return globals()["cmd_" + a.cmd](a) or 0
+    return globals()["cmd_" + ("plan" if a.cmd == "schedule" else a.cmd)](a) or 0
 
 
 if __name__ == "__main__":

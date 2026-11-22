@@ -272,5 +272,37 @@
   },
   "rotation": {
     "subject_cooldown_days": 30
+  },
+  "schedule": {
+    "$comment": "Posting grid (board, 22 Nov 2026): 2 reels a day on all four jenny accounts. Read by plan/schedule; the routine schedules one day ahead and produces two days ahead.",
+    "slots_utc": [
+      "13:00",
+      "20:00"
+    ],
+    "accounts": {
+      "instagram": "251ac50c-92bb-4edf-9e8a-5884224c44ac",
+      "youtube": "b63733c2-d6fa-476b-903d-f2fa0294bfb2",
+      "threads": "68f69d79-20a0-42dc-9693-0a768b1132d8",
+      "pinterest": "ecc32370-b09f-49e5-b955-5eda0abf809e"
+    },
+    "pinterest_board": "1088323134893667526",
+    "media_repo": "man0l/reel-famous-genz",
+    "media_branch": "media",
+    "cover_at_s": 1.2,
+    "postable": [
+      "approved",
+      "qa_ok"
+    ],
+    "blocked_templates": {
+      "C": "needs the self-diagnosis layouts (SLA-1653)",
+      "D": "needs the self-diagnosis layouts (SLA-1653)",
+      "E": "needs the self-diagnosis layouts (SLA-1653)"
+    },
+    "tags": [
+      "#actor",
+      "#faceanalysis",
+      "#celebrity",
+      "#facecard"
+    ]
   }
 }
