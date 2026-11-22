@@ -593,7 +593,11 @@ def build_job(tid):
     for d in (eng_fonts, os.path.join(PACK, "fonts")):
         for f in (os.listdir(d) if os.path.isdir(d) else []):
             shutil.copyfile(os.path.join(d, f), os.path.join(pub, "fonts", f))
-    shutil.copytree(os.path.join(PACK, "sfx"), os.path.join(pub, "sfx"))
+    os.makedirs(os.path.join(pub, "sfx"))
+    for f in os.listdir(os.path.join(PACK, "sfx")):  # stored as base64 text: the skill library only takes UTF-8 files
+        if f.endswith(".b64"):
+            with open(os.path.join(PACK, "sfx", f)) as src, open(os.path.join(pub, "sfx", f[:-4]), "wb") as dst:
+                dst.write(base64.b64decode(src.read()))
     music = sorted(os.listdir(p("music"))) if os.path.isdir(p("music")) else []
     if music:
         pick = music[sum(map(ord, tid)) % len(music)]
