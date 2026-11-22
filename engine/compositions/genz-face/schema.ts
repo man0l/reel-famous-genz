@@ -1,5 +1,5 @@
 // Strict zod schema for the genz-face script.json (genz-face.beat.v1). Source of truth: formats/genz-face/beat.schema.json and BUILD-BRIEF section 1.
-// Unknown keys are errors. Rule ids in messages ("[E2] ...") become SchemaIssue.rule (same ids as the qoves / facemetric schemas):
+// Unknown keys are errors. Rule ids in messages ("[E2] ...") become SchemaIssue.rule:
 // E1 schema, E3 unknown asset key, E6 durations length, E7 no score out of 10 on screen, E8 text over 14 words.
 import { z } from "zod";
 import { MAX_CHIPS, MAX_FEATURES, MAX_LINE_WORDS, POSES } from "./theme.ts";

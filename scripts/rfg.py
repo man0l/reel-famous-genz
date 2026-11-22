@@ -6,15 +6,9 @@ from rfg_lib import Fatal, log, p
 
 def cmd_init(a):
     home = L.init_home()
-    src = os.path.join("/paperclip/instances/default/data/reel-factory", L.COMPANY, "stills", "_idol")
-    dst = p("stills", "sprites")
-    os.makedirs(dst, exist_ok=True)
-    n = 0
-    if os.path.isdir(src):
-        for f in os.listdir(src):
-            if f.startswith(L.CFG["sprites"]["outfit"] + "_") and not os.path.exists(os.path.join(dst, f)):
-                L.shutil.copyfile(os.path.join(src, f), os.path.join(dst, f)); n += 1
-    log("data home %s ready (%d narrator sprite(s) copied)" % (home, n))
+    os.makedirs(p("stills", "sprites"), exist_ok=True)
+    n = len([f for f in os.listdir(p("stills", "sprites")) if f.startswith(L.CFG["sprites"]["outfit"] + "_")])
+    log("data home %s ready (%d narrator sprite(s) in stills/sprites/)" % (home, n))
 
 
 def cmd_status(a):

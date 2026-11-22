@@ -262,7 +262,7 @@
     "no_score_out_of_10": true
   },
   "render": {
-    "vps_runtime": "/paperclip/instances/default/data/reel-factory/{company}/remotion-runtime",
+    "vps_runtime": "/paperclip/instances/default/data/reel-famous-genz/{company}/remotion-runtime",
     "vps_limits": {
       "max_rss_mb": 2800,
       "min_avail_mb": 600,

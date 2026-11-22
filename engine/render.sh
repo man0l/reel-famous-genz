@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # VPS target of the remotion renderer. render.sh <job-dir> <out.mp4|out.jpg>  (a .jpg output renders the cover still, job.json still_composition)
-#   render.sh --slides <job-dir> <out-dir>  carousel slides (job.json slides_composition): <out-dir>/ig/NN.jpg, pin/NN.jpg, slides.json (SLA-1573)
 # Runs render-job.mjs under watchdog.sh (nice 15, one reel at a time, RSS / MemAvailable / wall limits).
 # Runtime (node_modules, Chrome headless shell, user-space lib bundle, bundle cache, fonts) lives in RF_REMOTION_HOME,
 # outside the read-only skill dir, and is built once. Never prints env values.
 set -euo pipefail
-SLIDES=0; [ "${1:-}" = "--slides" ] && { SLIDES=1; shift; }
-JOB=${1:?usage: render.sh [--slides] <job-dir> <out.mp4>}; OUT=${2:?usage: render.sh <job-dir> <out.mp4>}
+JOB=${1:?usage: render.sh <job-dir> <out.mp4>}; OUT=${2:?usage: render.sh <job-dir> <out.mp4>}
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-RT=${RF_REMOTION_HOME:-${REEL_FACTORY_HOME:?set REEL_FACTORY_HOME or RF_REMOTION_HOME}/remotion-runtime}
+RT=${RF_REMOTION_HOME:?set RF_REMOTION_HOME (rfg.sh sets it to the data home remotion-runtime/)}
 MIN_AVAIL_MB=${MIN_AVAIL_MB:-600}; START_AVAIL_MB=${RF_START_AVAIL_MB:-1024}
 export MAX_RSS_MB=${MAX_RSS_MB:-2800} MIN_AVAIL_MB MAX_SECS=${MAX_SECS:-1500}
 mkdir -p "$RT" "$JOB"; JOB=$(cd "$JOB" && pwd); OUT=$(mkdir -p "$(dirname "$OUT")" && cd "$(dirname "$OUT")" && pwd)/$(basename "$OUT")
@@ -59,14 +57,6 @@ FC
 export FONTCONFIG_FILE="$RT/fonts.conf" RF_CONCURRENCY=${RF_CONCURRENCY:-1}
 
 # 4. render under the watchdog (kills the whole tree on a breach, exit 137)
-if [ "$SLIDES" = 1 ]; then
-  # the slide plan is TypeScript (compositions/facemetric/slides/plan.ts) loaded by node itself, so node must strip types
-  rm -rf "$OUT"; cd "$APP"; set +e
-  NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-strip-types --no-warnings" "$HERE/watchdog.sh" "$JOB/watchdog" -- node "$APP/render-job.mjs" --slides "$JOB" "$OUT"
-  rc=$?; set -e
-  [ "$rc" -eq 0 ] && [ -s "$OUT/slides.json" ] && echo "render.sh: wrote $OUT"
-  exit $rc
-fi
 case "$OUT" in
   *.jpg) PART="${OUT%.jpg}.part.jpg"; MODE=(--still) ;;  # Remotion validates the extension
   *)     PART="${OUT%.mp4}.part.mp4"; MODE=() ;;

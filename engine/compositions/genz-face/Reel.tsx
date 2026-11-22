@@ -1,7 +1,6 @@
 import React, { useMemo } from "react";
 import { AbsoluteFill, Audio, Img, interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
-import { pad2 } from "../facemetric/timing.ts";
-import { assetSrc } from "../facemetric/components/util.ts";
+import { assetSrc, pad2 } from "./util.ts";
 import { Fonts } from "./components/Fonts.tsx";
 import { Stage } from "./components/Stage.tsx";
 import { Caption, Credit, Tag } from "./components/Text.tsx";

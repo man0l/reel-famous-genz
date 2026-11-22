@@ -1,6 +1,6 @@
 import React from "react";
 import { Img, interpolate, useCurrentFrame } from "remotion";
-import { assetSrc } from "../../facemetric/components/util.ts";
+import { assetSrc } from "../util.ts";
 import { NARRATOR, type Pose } from "../theme.ts";
 
 export const DEFAULT_POSES: Record<string, Pose[]> = {

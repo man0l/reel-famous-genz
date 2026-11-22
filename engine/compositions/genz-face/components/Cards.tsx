@@ -1,6 +1,6 @@
 import React from "react";
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
-import { assetSrc } from "../../facemetric/components/util.ts";
+import { assetSrc } from "../util.ts";
 import { FONT, GAME, HOLO, LANES, PETAL, PHOTOCARD } from "../theme.ts";
 import { Em } from "./Text.tsx";
 import type { Beat } from "../schema.ts";

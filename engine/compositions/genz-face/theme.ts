@@ -60,7 +60,7 @@ export const GAME = {
   card: { w: 620, h: 900, radius: "40px 40px 160px 160px / 40px 40px 120px 120px" },
   gold: { fill: "linear-gradient(160deg, #FFF0B8 0%, #E8C25A 30%, #B8862A 70%, #8A5F14 100%)", text: "#3A2606", ring: "none", rays: "rgba(255,215,120,.10)", glow: "rgba(255,215,120,.45)", accent: "#FFD778" },
   hero: { fill: "linear-gradient(160deg, #3A1C66 0%, #22103F 40%, #0E0620 100%)", text: "#F1E6FF", ring: "0 0 0 4px #B48CFF", rays: "rgba(170,90,255,.12)", glow: "rgba(170,90,255,.5)", accent: "#B48CFF" },
-  /** the six stats of the facemetric landmark read, in reveal order */
+  /** the six game-card stats, in reveal order */
   stats: ["EYE", "JAW", "SYM", "NOS", "BRW", "SKN"],
   rarity: ["RARE", "HERO", "GOLD", "ICON"],
 } as const;
@@ -74,6 +74,11 @@ export const PHOTOCARD = { width: 740, left: 170, top: 560, innerH: 880, border:
 /** Rhythm: 22-28 cuts a minute from pose swaps on caption groups and callout pops (a cut is never closer than MIN_CUT_GAP_S to the last). */
 export const CUTS_PER_MIN = { min: 22, max: 28 } as const;
 export const MIN_CUT_GAP_S = 1.4;
+
+/** Beat clock (seconds): crossfade between beats, pad after each voice clip, hold after the last. */
+export const XFADE_S = 0.25;
+export const PAD_S = 0.35;
+export const END_HOLD_S = 1.2;
 
 export const MAX_FEATURES = 6;
 /** BUILD-BRIEF section 6: lines under 14 words. */

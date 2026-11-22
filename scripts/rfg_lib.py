@@ -308,7 +308,7 @@ def sprite_assets():
         if os.path.exists(p("stills", rel)):
             sprites[pose], assets["idol_" + pose] = "idol_" + pose, rel
     if not sprites:
-        raise Fatal("no narrator sprites in %s (run `rfg.sh init` to copy them from reel-factory)" % p("stills", "sprites"))
+        raise Fatal("no narrator sprites in %s (expected %s_<pose>.png)" % (p("stills", "sprites"), sp["outfit"]))
     return sprites, assets
 
 
@@ -573,7 +573,7 @@ def engine():
 
 
 def build_job(tid):
-    """out/<id>/job: job.json + script.json (with durations) + public/ (cutouts, sprites, voice, fonts, sfx). Same layout as reel-factory jobs."""
+    """out/<id>/job: job.json + script.json (with durations) + public/ (cutouts, sprites, voice, fonts, sfx)."""
     wd = p("work", tid)
     script = json.load(open(os.path.join(wd, "script.json"), encoding="utf-8"))
     script["durations"] = json.load(open(os.path.join(wd, "durations.json")))

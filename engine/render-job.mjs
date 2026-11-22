@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Render one reel. Used unchanged by both targets (VPS render.sh and the Cloudflare container).
+// Render one reel (called by render.sh).
 //   node render-job.mjs <job-dir> <out.mp4>
 //   node render-job.mjs --still <job-dir> <out.jpg>      (cover still: job.json `still_composition` at `still_frame` (default 0), 1080x1920 JPEG under 1 MB)
-//   node render-job.mjs --slides <job-dir> <out-dir>     (carousel slides, SLA-1573: job.json `slides_composition` plans the slides of script.json, writes <out-dir>/ig/NN.jpg (1080x1350), <out-dir>/pin/NN.jpg (1000x1500) and <out-dir>/slides.json)
 //   node render-job.mjs --ensure-browser | --prebundle   (image build / first run: download Chrome, warm the bundle cache)
 // <job-dir>: job.json {reel_id, composition}, script.json (the composition's input props), public/ (stills, vo, fonts).
 // Writes <job-dir>/progress.json as it renders and prints one JSON line per progress step on stdout.
@@ -95,53 +94,6 @@ async function still(job, out) {
   if (bytes >= MAX_STILL_BYTES) throw new Error(`cover JPEG is ${bytes} bytes at quality 60 (limit ${MAX_STILL_BYTES})`);
 }
 
-const SLIDE_SETS = [{ dir: "ig", suffix: "", width: 1080, height: 1350, pinOnly: false }, { dir: "pin", suffix: "-pin", width: 1000, height: 1500, pinOnly: true }];
-
-/** Carousel slides: plan them (compositions/facemetric/slides/plan.ts, needs a node that strips types), then one still per slide and per size, JPEG under 1 MB. */
-async function slides(job, outDir) {
-  if (!job || !outDir) { console.error("usage: render-job.mjs --slides <job-dir> <out-dir>"); process.exit(2); }
-  const meta = JSON.parse(fs.readFileSync(path.join(job, "job.json"), "utf8"));
-  if (!meta.slides_composition) throw new Error("job.json has no slides_composition");
-  const script = JSON.parse(fs.readFileSync(path.join(job, "script.json"), "utf8"));
-  const { parseScript } = await import("./compositions/facemetric/schema.ts");
-  const { planSlides } = await import("./compositions/facemetric/slides/plan.ts");
-  const plan = planSlides(parseScript(script));
-  progress(job, { phase: "bundling", progress: 0, slides: plan.length });
-  const base = await getBundle();
-  const serveUrl = path.join(job, "bundle");
-  fs.rmSync(serveUrl, { recursive: true, force: true });
-  fs.cpSync(base, serveUrl, { recursive: true });
-  if (fs.existsSync(path.join(job, "public"))) fs.cpSync(path.join(job, "public"), path.join(serveUrl, "public"), { recursive: true });
-  await ensureBrowser({ browserExecutable });
-  const done = [];
-  const total = plan.length + plan.filter((s) => s.pin).length;
-  for (const set of SLIDE_SETS) {
-    fs.mkdirSync(path.join(outDir, set.dir), { recursive: true });
-    let n = 0;
-    let composition = null; // same size for every slide of a set: selected once with the first slide's props
-    for (const [i, slide] of plan.entries()) {
-      if (set.pinOnly && !slide.pin) continue;
-      n++;
-      const inputProps = { script, slide };
-      composition ??= await selectComposition({ serveUrl, id: meta.slides_composition + set.suffix, inputProps, browserExecutable, chromiumOptions, timeoutInMilliseconds: 120000 });
-      if (composition.width !== set.width || composition.height !== set.height) throw new Error(`${composition.id} is ${composition.width}x${composition.height}, expected ${set.width}x${set.height}`);
-      const file = path.join(outDir, set.dir, String(n).padStart(2, "0") + ".jpg");
-      let bytes = 0;
-      for (const jpegQuality of [92, 85, 78, 70, 60]) {
-        await renderStill({ composition: { ...composition, props: inputProps }, serveUrl, inputProps, output: file, frame: 0, imageFormat: "jpeg", jpegQuality, browserExecutable, chromiumOptions, timeoutInMilliseconds: 120000, overwrite: true });
-        bytes = fs.statSync(file).size;
-        if (bytes < MAX_STILL_BYTES) break;
-      }
-      if (bytes >= MAX_STILL_BYTES) throw new Error(`slide ${file} is ${bytes} bytes at quality 60 (limit ${MAX_STILL_BYTES})`);
-      done.push({ set: set.dir, file: path.basename(file), kind: slide.kind, beat: slide.index, frame: slide.frame, bytes, plan: i });
-      progress(job, { phase: "rendering", progress: Math.round((done.length / total) * 1000) / 1000, slides: done.length });
-    }
-  }
-  fs.writeFileSync(path.join(outDir, "slides.json"), JSON.stringify({ reel_id: meta.reel_id, plan, files: done }, null, 1));
-  fs.rmSync(serveUrl, { recursive: true, force: true });
-  progress(job, { phase: "done", progress: 1, slides: done.length });
-}
-
 async function main() {
   fs.mkdirSync(CACHE, { recursive: true });
   if (process.argv[2] === "--ensure-browser") {
@@ -155,7 +107,6 @@ async function main() {
     return;
   }
   if (process.argv[2] === "--still") return still(process.argv[3], process.argv[4]);
-  if (process.argv[2] === "--slides") return slides(process.argv[3], process.argv[4]);
   const [job, out] = process.argv.slice(2);
   if (!job || !out) { console.error("usage: render-job.mjs <job-dir> <out.mp4>"); process.exit(2); }
   const meta = JSON.parse(fs.readFileSync(path.join(job, "job.json"), "utf8"));

@@ -33,7 +33,7 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 ## Commands (`scripts/rfg.sh <cmd>`)
 | Command | Does |
 |---|---|
-| `init` | create the data home, seed memory files (never overwrites), copy the `idol_film` narrator sprites from reel-factory |
+| `init` | create the data home and seed the memory files (never overwrites). Narrator sprites live in `stills/sprites/idol_film_<pose>.png` |
 | `status` | topics by status, hook rotation, posts, next suggested topic |
 | `hooks` | list the hook templates and their source reels |
 | `photo <id>` | download `photo.commons_file` from Wikimedia Commons; record the author and licence |
@@ -56,11 +56,12 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 4. Before a full render, render one still per beat to check the layout: copy `out/<id>/job`, set `still_composition: "genz-face"` and `still_frame: N` in its job.json, and run `engine/render.sh <job> <out.jpg>`. It takes about 15 s a frame.
 
 ## Rendering (the skill's own engine)
-- `engine/` is a self-contained Remotion renderer with one composition, `genz-face` (`engine/compositions/genz-face/`). It was copied from reel-factory's renderer, and nothing in reel-factory is needed or changed. `facemetric/` and `qoves/` under `engine/compositions/` hold only the three helper files `genz-face` imports.
+- `engine/` is a self-contained Remotion renderer with one composition, `genz-face` (`engine/compositions/genz-face/`), and nothing else. It holds no qoves or facemetric code (those stay in reel-factory), and it needs nothing from reel-factory.
 - `render` runs `engine/render.sh` under its watchdog on this box. It takes about 20 min per 35 s reel.
-  - It reuses the box's Remotion runtime dir (`render.vps_runtime`: node_modules, headless Chrome, and the render lock), so only one render runs on the box at a time, whichever skill starts it.
+  - The runtime (node_modules, headless Chrome, bundle cache, render lock) is the skill's own: `render.vps_runtime` = `$RFG_HOME/remotion-runtime/`, built on the first render (about 1.5 GB).
+  - A render won't start below 1 GB MemAvailable, so it backs off if another renderer on the box is using memory.
   - **Start it detached** (`setsid nohup ... &` with a log) and set `TMPDIR` inside `$RFG_HOME`. A render that is a child of the run dies when the run ends.
-- There is no Cloudflare target: the reel-remotion Worker image belongs to reel-factory, and this skill doesn't deploy into it.
+- There is no Cloudflare target.
 - `RFG_ENGINE` points the skill at another checkout of itself (tests only).
 - Needs `OPEN_ROUTER_API_KEY` for restyle, copy and tts. The chroma key needs node and `sharp`; `rfg.sh` finds `/app/node_modules/.pnpm/sharp@*/node_modules` or uses `$RF_SHARP`.
 
