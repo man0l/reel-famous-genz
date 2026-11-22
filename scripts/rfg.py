@@ -1,0 +1,186 @@
+"""rfg.sh <command> ...  (see SKILL.md). Every command reads and writes the skill's own data home ($RFG_HOME)."""
+import argparse, concurrent.futures as cf, json, os, sys
+import rfg_lib as L
+from rfg_lib import Fatal, log, p
+
+
+def cmd_init(a):
+    home = L.init_home()
+    src = os.path.join("/paperclip/instances/default/data/reel-factory", L.COMPANY, "stills", "_idol")
+    dst = p("stills", "sprites")
+    os.makedirs(dst, exist_ok=True)
+    n = 0
+    if os.path.isdir(src):
+        for f in os.listdir(src):
+            if f.startswith(L.CFG["sprites"]["outfit"] + "_") and not os.path.exists(os.path.join(dst, f)):
+                L.shutil.copyfile(os.path.join(src, f), os.path.join(dst, f)); n += 1
+    log("data home %s ready (%d narrator sprite(s) copied)" % (home, n))
+
+
+def cmd_status(a):
+    rows = L.topics()
+    by = {}
+    for r in rows:
+        by.setdefault(r["status"], []).append(r["id"])
+    log("data home: %s" % L.HOME)
+    for s in L.STATUSES:
+        if by.get(s):
+            log("  %-9s %s" % (s, " ".join(by[s])))
+    log("hook rotation (times scripted): %s" % ", ".join("%s=%d" % kv for kv in L.rotation().items()))
+    posted = L.jsonl("posted.jsonl")
+    log("posted: %d (last: %s)" % (len(posted), posted[-1]["id"] + " " + posted[-1]["t"] if posted else "none"))
+    nx = L.next_topic()
+    log("next suggested: %s" % ("%s (%s, %s)" % (nx["id"], nx["template"], nx["subject"]) if nx else "none ready"))
+
+
+def cmd_hooks(a):
+    for k, t in L.HOOKS["templates"].items():
+        log("%-3s %-22s %s   [%s]" % (k, t["name"], " ".join(t["lines"]), t["source"]))
+
+
+def cmd_photo(a):
+    t = L.topic(a.id)
+    f = L.fetch_photo(t)
+    log("%s: %s (credit: %s)" % (a.id, f, t["photo"]["credit"]))
+
+
+def cmd_restyle(a):
+    t = L.topic(a.id)
+    usd = L.restyle(t)
+    for f in t.get("features") or []:
+        if f.get("subject") and f["subject"] != t["subject"]:
+            sub = dict(t, subject=f["subject"], photo=(L.subjects().get(L.slug(f["subject"])) or {}))
+            usd += L.restyle(sub)
+    L.set_status(a.id, "restyled")
+    log("%s: cutout %s ($%.3f)" % (a.id, p("stills", L.cut_rel(t["subject"])), usd))
+
+
+def cmd_copy(a):
+    t = L.topic(a.id)
+    lines = L.llm_feature_lines(t)
+    for f, l in zip(t["features"], lines):
+        if not f.get("vo") or a.force:
+            f["vo"] = l
+    L.save_topic(t)
+    for f in t["features"]:
+        log("  %-18s %s" % (f["label"], f["vo"]))
+
+
+def cmd_script(a):
+    t = L.topic(a.id)
+    s = L.build_script(t)
+    bad = L.lint_script(s, t)
+    if bad:
+        raise Fatal("%s: lint failed:\n  %s" % (a.id, "\n  ".join(bad)))
+    wd = p("work", a.id)
+    os.makedirs(wd, exist_ok=True)
+    json.dump(s, open(os.path.join(wd, "script.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
+    if not any(h["id"] == a.id for h in L.jsonl("hooks.jsonl")):
+        L.append("hooks.jsonl", {"t": L.now(), "id": a.id, "template": t["template"], "subject": t["subject"], "hook": s["beats"][0]["vo"]})
+    L.set_status(a.id, "scripted", hook=s["beats"][0]["vo"])
+    log("%s: script ok (%d beats): %s" % (a.id, len(s["beats"]), s["beats"][0]["vo"]))
+
+
+def cmd_lint(a):
+    t = L.topic(a.id)
+    s = json.load(open(p("work", a.id, "script.json"), encoding="utf-8")) if os.path.exists(p("work", a.id, "script.json")) else L.build_script(t)
+    bad = L.lint_script(s, t)
+    log("\n".join(bad) if bad else "%s: lint ok" % a.id)
+    return 1 if bad else 0
+
+
+def cmd_tts(a):
+    wd = p("work", a.id)
+    s = json.load(open(os.path.join(wd, "script.json"), encoding="utf-8"))
+    vd = os.path.join(wd, "vo")
+    if a.force:
+        L.shutil.rmtree(vd, ignore_errors=True)
+    os.makedirs(vd, exist_ok=True)
+    todo = [(i, b["vo"]) for i, b in enumerate(s["beats"]) if not os.path.exists(os.path.join(vd, "%02d.mp3" % i))]
+    with cf.ThreadPoolExecutor(4) as ex:
+        list(ex.map(lambda x: L.tts(x[1], os.path.join(vd, "%02d.mp3" % x[0])), todo))
+    durs = [round(L.mp3_duration(os.path.join(vd, "%02d.mp3" % i)), 3) for i in range(len(s["beats"]))]
+    if not all(d > 0.3 for d in durs):
+        raise Fatal("voice clip missing or empty: %s" % durs)
+    json.dump(durs, open(os.path.join(wd, "durations.json"), "w"))
+    L.set_status(a.id, "voiced")
+    log("%s: %d clips, %.1f s of voice" % (a.id, len(durs), sum(durs)))
+
+
+def cmd_render(a):
+    job = L.build_job(a.id)
+    out = L.render_vps(a.id, job)
+    L.set_status(a.id, "rendered")
+    log("%s: wrote %s (%.1f MB)" % (a.id, out, os.path.getsize(out) / 1e6))
+
+
+def cmd_make(a):
+    t = L.topic(a.id)
+    if not os.path.exists(p("stills", L.cut_rel(t["subject"]))):
+        cmd_restyle(a)
+    cmd_script(a)
+    a.force = False
+    cmd_tts(a)
+    cmd_render(a)
+
+
+def cmd_approve(a):
+    L.set_status(a.id, "approved")
+    log("%s approved" % a.id)
+
+
+def cmd_posted(a):
+    t = L.topic(a.id)
+    L.append("posted.jsonl", {"t": L.now(), "id": a.id, "subject": t["subject"], "template": t["template"], "platform": a.platform, "url": a.url, "stats": {}})
+    subs = L.subjects()
+    subs.setdefault(L.slug(t["subject"]), {"name": t["subject"]}).setdefault("posted", []).append({"id": a.id, "t": L.now(), "url": a.url})
+    L.save_subjects(subs)
+    L.set_status(a.id, "posted")
+    log("%s logged as posted on %s" % (a.id, a.platform))
+
+
+def cmd_stats(a):
+    rows = L.jsonl("posted.jsonl")
+    hit = [r for r in rows if r["id"] == a.id]
+    if not hit:
+        raise Fatal("%s is not in posted.jsonl" % a.id)
+    hit[-1]["stats"].update({"views": a.views, "at": L.now()} if a.views is not None else {})
+    with open(p("posted.jsonl") + ".tmp", "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    os.replace(p("posted.jsonl") + ".tmp", p("posted.jsonl"))
+    log("%s stats: %s" % (a.id, hit[-1]["stats"]))
+
+
+def cmd_learn(a):
+    with open(p("learnings.md"), "a", encoding="utf-8") as f:
+        f.write("\n- %s: %s\n" % (L.now()[:10], a.text.strip()))
+    log("added to learnings.md")
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="rfg.sh")
+    sp = ap.add_subparsers(dest="cmd", required=True)
+    for name in ("init", "status", "hooks"):
+        sp.add_parser(name)
+    for name in ("photo", "restyle", "script", "lint", "approve"):
+        sp.add_parser(name).add_argument("id")
+    for name in ("copy", "tts"):
+        q = sp.add_parser(name); q.add_argument("id"); q.add_argument("--force", action="store_true")
+    for name in ("render", "make"):
+        q = sp.add_parser(name); q.add_argument("id")
+    q = sp.add_parser("posted"); q.add_argument("id"); q.add_argument("--platform", required=True); q.add_argument("--url", default="")
+    q = sp.add_parser("stats"); q.add_argument("id"); q.add_argument("--views", type=int)
+    q = sp.add_parser("learn"); q.add_argument("text")
+    a = ap.parse_args(argv)
+    if a.cmd != "init" and not os.path.exists(p("topics.csv")):
+        raise Fatal("data home %s is not initialised: run `rfg.sh init`" % L.HOME)
+    return globals()["cmd_" + a.cmd](a) or 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Fatal as e:
+        print("rfg: %s" % e, file=sys.stderr)
+        sys.exit(2)

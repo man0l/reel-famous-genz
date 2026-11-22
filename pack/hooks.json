@@ -1,0 +1,56 @@
+{
+  "$comment": "Hook templates copied word for word from @glowupmenclub (12 reels scraped 21 Nov 2026, reel-factory data home research/glowupmenclub-ig-2026-11-21/). Only the {slots} change. lint enforces that a script's hook is exactly one of these with its slots filled. `kind` picks the beat structure (rfg_lib.build_script).",
+  "templates": {
+    "A": {
+      "name": "why-attractive",
+      "kind": "celebrity",
+      "source": "Zayn 497k, Sadie Sink 154k, Morrone 81k",
+      "lines": ["Why does {name} look so attractive?"]
+    },
+    "A+": {
+      "name": "why-attractive-change",
+      "kind": "celebrity",
+      "source": "Zayn 497k (\"...and how did he completely change his look after One Direction?\")",
+      "lines": ["Why does {name} look so attractive?", "And how did {he} completely change {his} look after {event}?"]
+    },
+    "A'": {
+      "name": "what-made",
+      "kind": "celebrity",
+      "source": "Emma Watson 48k (\"She was every guy's crush.\")",
+      "lines": ["What made {name} so attractive?", "{He} was every {crush_of}'s crush."]
+    },
+    "B": {
+      "name": "going-viral",
+      "kind": "celebrity",
+      "source": "Marlon 240k (\"This streamer is going viral on TikTok just because of his looks. His name is ...\")",
+      "lines": ["This {noun} is going viral on TikTok just because of {his} looks.", "{His} name is {name}."],
+      "slots": {"noun": ["actor", "creator", "streamer", "model", "singer"]}
+    },
+    "C": {
+      "name": "six-types",
+      "kind": "types",
+      "source": "cheek types 277k, face shape 22k",
+      "lines": ["What {thing} do you actually have?", "Here are six main types."],
+      "slots": {"thing": ["cheek type", "face shape"]}
+    },
+    "D": {
+      "name": "this-or-that",
+      "kind": "compare",
+      "source": "blue vs brown eyes 44k (turn: bone structure matters more than colour)",
+      "lines": ["{a} or {b}?", "Which do you find more attractive?"]
+    },
+    "E": {
+      "name": "easy-to-tell",
+      "kind": "selftest",
+      "source": "hair damaged 1.67M, attractive to girls 662k",
+      "lines": ["It is actually really easy to tell if {test}."],
+      "slots": {"test": ["you are attractive to girls", "your hair is damaged"]}
+    }
+  },
+  "bridge": {
+    "celebrity": "So let's break down what {his} face actually has.",
+    "types": "Let's go through them one by one.",
+    "compare": "Let's put them side by side.",
+    "selftest": "Here is how you check."
+  }
+}

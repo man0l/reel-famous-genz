@@ -1,0 +1,95 @@
+{
+ "id": "RSG0001",
+ "template": "A",
+ "subject": "Barry Keoghan",
+ "gender": "M",
+ "ep": 1,
+ "photo": {
+  "commons_file": "File:Barry Keoghan 2024 (cropped).jpg",
+  "credit": "Senior Airman Austin Pate, public domain (US Air Force)"
+ },
+ "features": [
+  {
+   "region": "eye_colour",
+   "label": "PALE BLUE EYES",
+   "chip": "light iris, dark lashes: high contrast",
+   "vo": "First, the eyes. Pale blue, framed by dark lashes, so they pop.",
+   "hot": [
+    "blue"
+   ]
+  },
+  {
+   "region": "eyes",
+   "label": "DEEP-SET EYES",
+   "chip": "set deep under a low brow",
+   "vo": "They sit deep under the brow. That is where the stare comes from.",
+   "hot": [
+    "stare"
+   ]
+  },
+  {
+   "region": "brows",
+   "label": "STRAIGHT DARK BROWS",
+   "chip": "a low, heavy line",
+   "vo": "His brows are dark, straight and low. That reads as intense.",
+   "hot": [
+    "intense"
+   ]
+  },
+  {
+   "region": "cheekbones",
+   "label": "HIGH CHEEKBONES",
+   "chip": "hollow underneath, strong shadows",
+   "vo": "High cheekbones with hollows under them. Every photo gets strong shadows.",
+   "hot": [
+    "shadows"
+   ]
+  },
+  {
+   "region": "jaw",
+   "label": "NARROW, SHARP JAW",
+   "chip": "lean face, clean angle",
+   "vo": "A narrow jaw with a clean angle keeps the whole face lean.",
+   "hot": [
+    "jaw"
+   ]
+  },
+  {
+   "region": "lips",
+   "label": "OFF-CENTRE SMILE",
+   "chip": "the asymmetry people remember",
+   "vo": "And the smile is off-centre. That is what makes him memorable.",
+   "hot": [
+    "memorable"
+   ]
+  }
+ ],
+ "card": {
+  "ovr": 86,
+  "rarity": "HERO",
+  "stats": {
+   "EYE": 95,
+   "JAW": 84,
+   "SYM": 72,
+   "NOS": 80,
+   "BRW": 88,
+   "SKN": 82
+  },
+  "vo": "Put it all together and his face card comes out at 86."
+ },
+ "cta": {
+  "pills": [
+   "JACOB ELORDI",
+   "AUSTIN BUTLER",
+   "PAUL MESCAL",
+   "SOMEONE ELSE"
+  ],
+  "vo": "Comment who I should break down next.",
+  "tease": "next: Timothée Chalamet"
+ },
+ "next": [
+  "Timothée Chalamet",
+  "Jacob Elordi"
+ ],
+ "notes": "Test reel 1 (SLA-1643). Cutout reused from reel-factory stills/genz/barry_keoghan."
+}

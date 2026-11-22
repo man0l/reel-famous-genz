@@ -1,0 +1,131 @@
+{
+ "id": "RSG0002",
+ "template": "A'",
+ "subject": "Timothée Chalamet",
+ "gender": "M",
+ "ep": 2,
+ "photo": {
+  "commons_file": "File:Timothée Chalamet-63541.jpg",
+  "credit": "Harald Krichel, CC BY-SA 4.0"
+ },
+ "features": [
+  {
+   "region": "eye_colour",
+   "label": "LIGHT GREEN EYES",
+   "chip": "with a slight upward tilt",
+   "vo": "Start with the eyes. Light green, with a slight upward tilt.",
+   "hot": [
+    "green"
+   ],
+   "at": [
+    0.569,
+    0.388
+   ],
+   "crop": {
+    "w": 1650,
+    "x": -300,
+    "y": -180
+   }
+  },
+  {
+   "region": "cheekbones",
+   "label": "HIGH CHEEKBONES",
+   "chip": "structure in a soft face",
+   "vo": "High cheekbones give a soft face real structure.",
+   "hot": [
+    "structure"
+   ],
+   "at": [
+    0.65,
+    0.44
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -110
+   }
+  },
+  {
+   "region": "nose",
+   "label": "LONG, STRAIGHT NOSE",
+   "chip": "a narrow bridge",
+   "vo": "A long, straight nose keeps the middle of his face sharp.",
+   "hot": [
+    "sharp"
+   ],
+   "at": [
+    0.475,
+    0.46
+   ],
+   "crop": {
+    "w": 1600,
+    "x": -260,
+    "y": -180
+   }
+  },
+  {
+   "region": "jaw",
+   "label": "SOFT, NARROW JAW",
+   "chip": "no hard angle, and it still works",
+   "vo": "His jaw is narrow and soft. You don't need a sharp jaw.",
+   "hot": [
+    "soft"
+   ],
+   "at": [
+    0.37,
+    0.61
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -110
+   }
+  },
+  {
+   "region": "hair",
+   "label": "MESSY VOLUME",
+   "chip": "frames the face, adds height",
+   "vo": "And the hair. Messy volume on top frames the whole face.",
+   "hot": [
+    "hair"
+   ],
+   "at": [
+    0.5,
+    0.14
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": 20
+   }
+  }
+ ],
+ "card": {
+  "ovr": 87,
+  "rarity": "ICON",
+  "stats": {
+   "EYE": 90,
+   "JAW": 76,
+   "SYM": 85,
+   "NOS": 84,
+   "BRW": 80,
+   "SKN": 89
+  },
+  "vo": "Put it all together and his face card comes out at 87."
+ },
+ "cta": {
+  "pills": [
+   "JACOB ELORDI",
+   "AUSTIN BUTLER",
+   "PAUL MESCAL",
+   "SOMEONE ELSE"
+  ],
+  "vo": "Comment who I should break down next.",
+  "tease": "next: Jacob Elordi"
+ },
+ "next": [
+  "Jacob Elordi",
+  "Austin Butler"
+ ],
+ "notes": "Test reel 2 (SLA-1643). Photo: Harald Krichel, Berlinale 2024."
+}

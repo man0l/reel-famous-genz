@@ -1,0 +1,320 @@
+{
+ "format": "genz-face",
+ "template": "K",
+ "reel_id": "GZ0002",
+ "footer": "AI-edited images",
+ "lane": "B",
+ "lens": "kpop",
+ "episode_type": "celebrity",
+ "tag": {
+  "en": "FACE DEBUT · EP.11 · CONCEPT",
+  "ko": "컨셉포토"
+ },
+ "name": "Barry Keoghan",
+ "cite": "Portrait painted from a photo by Senior Airman Austin Pate, public domain (US Air Force), Wikimedia Commons · AI-edited images",
+ "hangul": false,
+ "assets": {
+  "cut": "genz/barry_keoghan/cut.png",
+  "idol_point": "_idol/idol_film_point.png",
+  "idol_think": "_idol/idol_film_think.png",
+  "idol_cross": "_idol/idol_film_cross.png",
+  "idol_present": "_idol/idol_film_present.png"
+ },
+ "sprites": {
+  "point": "idol_point",
+  "think": "idol_think",
+  "cross": "idol_cross",
+  "present": "idol_present"
+ },
+ "ratios": {
+  "cut": 1.2946
+ },
+ "beats": [
+  {
+   "kind": "hook",
+   "img": "cut",
+   "head": [
+    "IF BARRY KEOGHAN",
+    "WAS AN *IDOL*"
+   ],
+   "sub": "which concept would he get?",
+   "sub_ko": "컨셉",
+   "card": [
+    "BARRY",
+    "concept photo · ver. 2"
+   ],
+   "vo": "If Barry Keoghan was an idol, which concept would he get?",
+   "hot": [
+    "idol"
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "he would never be",
+    "the center.",
+    "he is the *dark concept.*"
+   ],
+   "vo": "He would never be the center. He is the dark concept.",
+   "hot": [
+    "dark"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": 120
+   },
+   "callouts": [
+    {
+     "at": [
+      0.395,
+      0.316
+     ],
+     "label": "CAT EYES",
+     "pos": [
+      60,
+      1180
+     ],
+     "ko": "고양이상",
+     "chip": "outer corner up, deep under the brow: the villain visual",
+     "w": 640
+    }
+   ],
+   "vo": "Cat eyes, deep under the brow.",
+   "hot": [
+    "brow"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": 40
+   },
+   "callouts": [
+    {
+     "at": [
+      0.4,
+      0.275
+     ],
+     "label": "DARK BROWS",
+     "pos": [
+      560,
+      300
+     ],
+     "chip": "a heavy line over pale eyes",
+     "w": 460
+    }
+   ],
+   "vo": "Dark brows over pale eyes. Villain energy.",
+   "hot": [
+    "villain"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1650,
+    "x": -300,
+    "y": -40
+   },
+   "callouts": [
+    {
+     "at": [
+      0.5625,
+      0.318
+     ],
+     "label": "PALE BLUE EYES",
+     "pos": [
+      560,
+      300
+     ],
+     "chip": "the cold colour that sells the dark concept",
+     "w": 480
+    }
+   ],
+   "vo": "Pale blue eyes. Cold, on purpose.",
+   "hot": [
+    "blue"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.656,
+      0.39
+     ],
+     "label": "HOLLOW CHEEKS",
+     "pos": [
+      560,
+      300
+     ],
+     "chip": "concept-photo lighting does the rest",
+     "w": 460
+    },
+    {
+     "at": [
+      0.365,
+      0.52
+     ],
+     "label": "SHARP JAW",
+     "pos": [
+      60,
+      1180
+     ],
+     "ko": "턱선",
+     "chip": "built for the dark teaser, not the fan-sign",
+     "w": 600
+    }
+   ],
+   "vo": "Hollow cheeks and a sharp jaw.",
+   "hot": [
+    "sharp"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1450,
+    "x": -180,
+    "y": -20
+   },
+   "callouts": [
+    {
+     "at": [
+      0.487,
+      0.463
+     ],
+     "label": "OFFBEAT SMILE",
+     "pos": [
+      60,
+      1180
+     ],
+     "chip": "the one warm note on a dark face",
+     "w": 560
+    }
+   ],
+   "vo": "Then that smile. The one warm note.",
+   "hot": [
+    "smile"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": 160
+   },
+   "callouts": [
+    {
+     "at": [
+      0.5,
+      0.1
+     ],
+     "label": "SWEPT HAIR",
+     "pos": [
+      560,
+      1180
+     ],
+     "chip": "side part, no styling needed",
+     "w": 440
+    }
+   ],
+   "vo": "Swept hair, no stylist needed.",
+   "hot": [
+    "swept"
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "so which concept does the company give *him?*"
+   ],
+   "vo": "Soft, school, retro, dark. So which concept does the company give him?",
+   "hot": [
+    "him"
+   ]
+  },
+  {
+   "kind": "verdict",
+   "img": "cut",
+   "head": "CONCEPT RESULT",
+   "word": "DARK",
+   "ko": "다크 컨셉 · the comeback, never the debut",
+   "reason": "the comeback, never the debut.",
+   "chips": [
+    [
+     "FACE TYPE",
+     "CAT"
+    ],
+    [
+     "LINE",
+     "VISUAL"
+    ],
+    [
+     "TEASER",
+     "BLACK & WHITE"
+    ],
+    [
+     "ROLE",
+     "NOT CENTER"
+    ]
+   ],
+   "vo": "Dark concept. The comeback, never the debut. Everyone remembers that teaser.",
+   "hot": [
+    "dark"
+   ]
+  },
+  {
+   "kind": "cta",
+   "head": [
+    "COMMENT",
+    "HIS *CONCEPT*"
+   ],
+   "pills": [
+    "SOFT",
+    "DARK",
+    "SCHOOL",
+    "RETRO"
+   ],
+   "vo": "Comment his concept: soft, dark, school, retro. Next concept photo: Jacob Elordi.",
+   "hot": [
+    "retro"
+   ],
+   "on": 1,
+   "tease": "next concept photo: Jacob Elordi. follow for the next result."
+  }
+ ],
+ "sfx": true,
+ "durations": [
+  3.213,
+  3.396,
+  1.593,
+  2.717,
+  2.847,
+  1.776,
+  2.534,
+  2.011,
+  5.538,
+  5.46,
+  7.131
+ ]
+}

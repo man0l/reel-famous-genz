@@ -1,0 +1,276 @@
+{
+  "$comment": "One lane (Gen Z actors and creators), one account, one look. The picture is the skill's own Remotion composition `genz-face` (engine/) with lane B tokens (pink K-pop glow) and the kpop stage; the payoff is always the game card (walkout beat).",
+  "composition": "genz-face",
+  "lane": "B",
+  "lens": "kpop",
+  "tag": "FACE FILE · EP.%02d",
+  "badge": [
+    "FACE",
+    "FILE"
+  ],
+  "footer": "AI-edited images",
+  "audio": {
+    "voice": "charlie",
+    "model": "elevenlabs/eleven-flash-v2.5",
+    "speed": 0.95
+  },
+  "sprites": {
+    "outfit": "idol_film",
+    "poses": [
+      "point",
+      "think",
+      "cross",
+      "present"
+    ],
+    "pending": [
+      "shock",
+      "approve",
+      "hair",
+      "profile",
+      "phone"
+    ]
+  },
+  "features": {
+    "min": 4,
+    "max": 6
+  },
+  "card": {
+    "stats": [
+      "EYE",
+      "JAW",
+      "SYM",
+      "NOS",
+      "BRW",
+      "SKN"
+    ],
+    "rarity": [
+      "RARE",
+      "HERO",
+      "GOLD",
+      "ICON"
+    ]
+  },
+  "regions": {
+    "$comment": "Default callout anchors as fractions of the painted head-and-shoulders cutout (measured on the Keoghan cutout). A feature's own `at` wins.",
+    "hair": {
+      "at": [
+        0.5,
+        0.1
+      ],
+      "pos": [
+        560,
+        1180
+      ],
+      "crop": {
+        "w": 1500,
+        "x": -210,
+        "y": 160
+      }
+    },
+    "brows": {
+      "at": [
+        0.4,
+        0.275
+      ],
+      "pos": [
+        560,
+        300
+      ],
+      "crop": {
+        "w": 1500,
+        "x": -210,
+        "y": 40
+      }
+    },
+    "eyes": {
+      "at": [
+        0.395,
+        0.316
+      ],
+      "pos": [
+        60,
+        1180
+      ],
+      "crop": {
+        "w": 1500,
+        "x": -210,
+        "y": 120
+      }
+    },
+    "eye_colour": {
+      "at": [
+        0.5625,
+        0.318
+      ],
+      "pos": [
+        560,
+        300
+      ],
+      "crop": {
+        "w": 1650,
+        "x": -300,
+        "y": -40
+      }
+    },
+    "nose": {
+      "at": [
+        0.48,
+        0.4
+      ],
+      "pos": [
+        560,
+        300
+      ],
+      "crop": {
+        "w": 1600,
+        "x": -260,
+        "y": -40
+      }
+    },
+    "cheekbones": {
+      "at": [
+        0.656,
+        0.39
+      ],
+      "pos": [
+        560,
+        300
+      ],
+      "crop": {
+        "w": 1500,
+        "x": -210,
+        "y": -60
+      }
+    },
+    "lips": {
+      "at": [
+        0.487,
+        0.463
+      ],
+      "pos": [
+        60,
+        1180
+      ],
+      "crop": {
+        "w": 1450,
+        "x": -180,
+        "y": -20
+      }
+    },
+    "jaw": {
+      "at": [
+        0.365,
+        0.52
+      ],
+      "pos": [
+        60,
+        1180
+      ],
+      "crop": {
+        "w": 1500,
+        "x": -210,
+        "y": -60
+      }
+    },
+    "chin": {
+      "at": [
+        0.48,
+        0.56
+      ],
+      "pos": [
+        60,
+        1180
+      ],
+      "crop": {
+        "w": 1500,
+        "x": -210,
+        "y": -80
+      }
+    },
+    "skin": {
+      "at": [
+        0.4,
+        0.42
+      ],
+      "pos": [
+        560,
+        300
+      ],
+      "crop": {
+        "w": 1550,
+        "x": -230,
+        "y": 0
+      }
+    }
+  },
+  "restyle": {
+    "model": "google/gemini-3.1-flash-image-preview",
+    "qa_model": "google/gemini-3.8-flash",
+    "aspect": "3:4",
+    "style": "a clean, high-quality 2D digital painting with soft painterly brush strokes and smooth skin (a realistic illustrated portrait, NOT anime, NOT a cartoon)",
+    "prompt": "Repaint this photo as {style}. Keep the exact likeness, face shape, eyes, nose, lips, eyebrows, hair and skin tone unchanged. Head-and-shoulders, straight on, cut out on a flat, solid, uniform pure magenta background (#FF00FF) with nothing else on it. Replace the clothing with a plain dark crew-neck top, no logos, no badges, no text. Vertical 3:4 portrait.",
+    "qa": "You are QA for a face-breakdown series. Image 1 = source photo of {name}. Image 2 = painted portrait on a flat magenta background.\nCheck image 2: painterly (not anime, not cartoon), head-and-shoulders, straight on, plain dark top with no logo or text, background one flat magenta colour, no defects (eyes, ears, hair merging). Most important: is image 2 still clearly recognisable as the same person as image 1 ({name})?\npass = likeness>=8 and style_ok and realism>=7.\nReply JSON only: {{\"likeness\":0-10,\"style_ok\":bool,\"realism\":0-10,\"defects\":[str],\"pass\":bool,\"notes\":str}}"
+  },
+  "lint": {
+    "max_line_words": 13,
+    "banned": [
+      "link in bio",
+      "download",
+      "our app",
+      "the app",
+      "comment link",
+      "canthal",
+      "mogging",
+      "mogs",
+      "blackpill",
+      "mewing",
+      "psl",
+      "chad",
+      "looksmax",
+      "looksmaxxing",
+      "qoves",
+      "boy group",
+      "girl group",
+      "trainee",
+      "debuted",
+      "debut",
+      "idol position",
+      "which position",
+      "which concept",
+      "monthly evaluation",
+      "concept photo"
+    ],
+    "banned_names": [
+      "hybe",
+      "jyp",
+      "sm entertainment",
+      "yg entertainment",
+      "blackpink",
+      "newjeans",
+      "stray kids",
+      "netflix",
+      "marvel",
+      "disney",
+      "hbo",
+      "a24",
+      "fifa",
+      "ea sports",
+      "panini",
+      "topps",
+      "psa grading"
+    ],
+    "no_score_out_of_10": true
+  },
+  "render": {
+    "vps_runtime": "/paperclip/instances/default/data/reel-factory/{company}/remotion-runtime",
+    "vps_limits": {
+      "max_rss_mb": 2800,
+      "min_avail_mb": 600,
+      "start_avail_mb": 1024,
+      "max_secs": 1500
+    }
+  },
+  "rotation": {
+    "subject_cooldown_days": 30
+  }
+}

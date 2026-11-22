@@ -1,0 +1,336 @@
+{
+ "format": "genz-face",
+ "template": "K",
+ "reel_id": "GZ0001",
+ "footer": "AI-edited images",
+ "lane": "A",
+ "lens": "kpop",
+ "episode_type": "celebrity",
+ "tag": {
+  "en": "FACE DEBUT · EP.07 · EVALUATION",
+  "ko": "월말평가"
+ },
+ "name": "Lamine Yamal",
+ "cite": "Portrait painted from a photo by Bryan Berlin, CC BY-SA 4.0, Wikimedia Commons · AI-edited images",
+ "hangul": false,
+ "assets": {
+  "cut": "genz/lamine_yamal/cut.png",
+  "idol_point": "_idol/idol_fb_point.png",
+  "idol_think": "_idol/idol_fb_think.png",
+  "idol_cross": "_idol/idol_fb_cross.png",
+  "idol_present": "_idol/idol_fb_present.png"
+ },
+ "sprites": {
+  "point": "idol_point",
+  "think": "idol_think",
+  "cross": "idol_cross",
+  "present": "idol_present"
+ },
+ "ratios": {
+  "cut": 1.3153
+ },
+ "beats": [
+  {
+   "kind": "hook",
+   "img": "cut",
+   "head": [
+    "IF LAMINE YAMAL",
+    "DEBUTED IN A",
+    "*BOY GROUP*"
+   ],
+   "sub": "which position would he get?",
+   "sub_ko": "포지션",
+   "card": [
+    "LAMINE",
+    "trainee #07 · week 12"
+   ],
+   "vo": "If Lamine Yamal debuted in a boy group, which position would he get?",
+   "hot": [
+    "debuted"
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "monthly evaluation.",
+    "they grade the dance.",
+    "nobody grades *the face.*"
+   ],
+   "vo": "Monthly evaluation. They grade the dance. Nobody grades the face.",
+   "hot": [
+    "face"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": 80
+   },
+   "callouts": [
+    {
+     "at": [
+      0.4,
+      0.33
+     ],
+     "label": "PUPPY EYES",
+     "pos": [
+      60,
+      1130
+     ],
+     "ko": "강아지상",
+     "chip": "round, wide-set, eye-smile when he grins",
+     "w": 470
+    },
+    {
+     "at": [
+      0.57,
+      0.33
+     ],
+     "label": "DOUBLE LID",
+     "pos": [
+      560,
+      1130
+     ],
+     "ko": "쌍꺼풀",
+     "chip": "the visual-line marker",
+     "w": 440
+    }
+   ],
+   "vo": "First thing a fan clocks: puppy eyes.",
+   "hot": [
+    "puppy"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1600,
+    "x": -260,
+    "y": -10
+   },
+   "callouts": [
+    {
+     "at": [
+      0.48,
+      0.305
+     ],
+     "label": "STRAIGHT BROWS",
+     "pos": [
+      60,
+      1130
+     ],
+     "chip": "thick, clean line, stage-light ready",
+     "w": 640
+    }
+   ],
+   "vo": "Thick, straight brows frame those eyes.",
+   "hot": [
+    "straight"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -120
+   },
+   "callouts": [
+    {
+     "at": [
+      0.49,
+      0.42
+     ],
+     "label": "HIGH BRIDGE",
+     "pos": [
+      560,
+      250
+     ],
+     "ko": "콧대",
+     "chip": "profile-cam approved",
+     "w": 420
+    },
+    {
+     "at": [
+      0.36,
+      0.515
+     ],
+     "label": "V-LINE",
+     "pos": [
+      60,
+      1130
+     ],
+     "ko": "브이라인",
+     "chip": "clean angle from ear to chin",
+     "w": 520
+    }
+   ],
+   "vo": "Then the V-line, clean from ear to chin.",
+   "hot": [
+    "v-line"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1450,
+    "x": -180,
+    "y": 110
+   },
+   "callouts": [
+    {
+     "at": [
+      0.52,
+      0.16
+     ],
+     "label": "CURLY TOP",
+     "pos": [
+      560,
+      300
+     ],
+     "chip": "volume that reads from the back row",
+     "w": 500
+    }
+   ],
+   "vo": "And the curls give him volume on stage.",
+   "hot": [
+    "curls"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.5,
+      0.47
+     ],
+     "label": "FULL LIPS",
+     "pos": [
+      60,
+      1130
+     ],
+     "chip": "soft, the quiet part of the visual line",
+     "w": 600
+    }
+   ],
+   "vo": "Full lips keep the whole face soft.",
+   "hot": [
+    "soft"
+   ]
+  },
+  {
+   "kind": "feature",
+   "img": "cut",
+   "crop": {
+    "w": 1550,
+    "x": -230,
+    "y": 0
+   },
+   "callouts": [
+    {
+     "at": [
+      0.6,
+      0.42
+     ],
+     "label": "GLOW SKIN",
+     "pos": [
+      60,
+      1130
+     ],
+     "chip": "even tone, camera-light friendly",
+     "w": 520
+    }
+   ],
+   "vo": "Last, even skin. Perfect for close-ups.",
+   "hot": [
+    "skin"
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "so where does the company put *him?*"
+   ],
+   "vo": "Dance, vocal, rap, it all counts. So where does the company put him?",
+   "hot": [
+    "him"
+   ]
+  },
+  {
+   "kind": "verdict",
+   "img": "cut",
+   "head": "EVALUATION RESULT",
+   "word": "VISUAL",
+   "ko": "비주얼 · the face of the group",
+   "reason": "the one they put in the centre of the teaser.",
+   "chips": [
+    [
+     "FACE TYPE",
+     "PUPPY"
+    ],
+    [
+     "LINE",
+     "VISUAL"
+    ],
+    [
+     "CONCEPT",
+     "BOY NEXT DOOR"
+    ],
+    [
+     "DEBUT",
+     "PASS"
+    ]
+   ],
+   "vo": "Visual. The one they put in the centre of the teaser. Every group needs one.",
+   "hot": [
+    "visual"
+   ]
+  },
+  {
+   "kind": "cta",
+   "head": [
+    "COMMENT",
+    "HIS *POSITION*"
+   ],
+   "pills": [
+    "VISUAL",
+    "CENTER",
+    "MAIN DANCER",
+    "RAPPER LINE"
+   ],
+   "vo": "Comment his position: visual, center, main dancer, rapper line. Next evaluation: Bellingham.",
+   "hot": [
+    "line"
+   ],
+   "on": 0,
+   "tease": "next evaluation: Bellingham. follow so you don't miss his result."
+  }
+ ],
+ "sfx": true,
+ "durations": [
+  3.866,
+  3.788,
+  2.116,
+  2.377,
+  2.194,
+  2.064,
+  1.959,
+  2.612,
+  4.101,
+  4.467,
+  6.74
+ ]
+}
