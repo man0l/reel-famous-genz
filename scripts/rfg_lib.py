@@ -1017,10 +1017,13 @@ def gh_api(args, body=None):
 
 
 def host(tid):
-    """Push out/<id>.mp4 + cover to the media branch; returns jsDelivr URLs pinned to the commit (Slashloop needs a video/mp4 type)."""
+    """Push out/<id>.mp4 + cover to the media branch; returns raw.githubusercontent URLs pinned to the commit.
+    Not jsDelivr: the media branch is over its 50 MB package limit, so new jsDelivr URLs answer 403 (SLA-1669).
+    The cache is keyed on the local file sizes, so a re-rendered reel is pushed again instead of reusing the old URL."""
     repo, br = SCHED["media_repo"], SCHED["media_branch"]
     h = hosted()
-    if tid in h:
+    sizes = [os.path.getsize(f) if os.path.exists(f) else None for f in (p("out", tid + ".mp4"), p("out", tid + "_cover.jpg"))]
+    if tid in h and h[tid].get("sizes") == sizes and "raw.githubusercontent.com" in h[tid]["mp4"]:
         return h[tid]
     sha = None
     for local, name in ((p("out", tid + ".mp4"), tid + ".mp4"), (p("out", tid + "_cover.jpg"), tid + "_cover.jpg")):
@@ -1041,8 +1044,8 @@ def host(tid):
         if rc != 0:
             raise Fatal("read %s@%s: %s" % (repo, br, err.strip()[:300]))
         sha = res["sha"]
-    base = "https://cdn.jsdelivr.net/gh/%s@%s/" % (repo, sha)
-    h[tid] = {"mp4": base + tid + ".mp4", "cover": base + tid + "_cover.jpg", "commit": sha, "t": now()}
+    base = "https://raw.githubusercontent.com/%s/%s/" % (repo, sha)
+    h[tid] = {"mp4": base + tid + ".mp4", "cover": base + tid + "_cover.jpg", "commit": sha, "sizes": sizes, "t": now()}
     os.makedirs(p("state"), exist_ok=True)
     json.dump(h, open(p("state", "hosted.json"), "w"), indent=1)
     return h[tid]
