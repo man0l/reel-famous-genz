@@ -586,14 +586,24 @@ def mp3_duration(path):
 
 
 # ---------- photos (Wikimedia Commons only) ----------
+# Commons only serves these thumbnail widths (https://w.wiki/GHai); any other width is a 400, and the
+# unscaled original (what a width >= the file's own width returns) is rate-limited with 429.
+COMMONS_WIDTHS = (1920, 1280, 960, 500)
+
+
 def commons_info(file_title):
     """(thumb url, credit 'Author, Licence') of a Commons file title like 'File:Timothée Chalamet-63541.jpg'."""
-    q = urllib.parse.urlencode({"action": "query", "format": "json", "titles": file_title, "prop": "imageinfo", "iiprop": "url|extmetadata", "iiurlwidth": "1200"})
-    d = json.load(urllib.request.urlopen(urllib.request.Request("https://commons.wikimedia.org/w/api.php?" + q, headers={"User-Agent": WIKI_UA}), timeout=60))
-    page = next(iter(d["query"]["pages"].values()))
+    def query(width):
+        q = urllib.parse.urlencode({"action": "query", "format": "json", "titles": file_title, "prop": "imageinfo", "iiprop": "url|size|extmetadata", "iiurlwidth": str(width)})
+        d = json.load(urllib.request.urlopen(urllib.request.Request("https://commons.wikimedia.org/w/api.php?" + q, headers={"User-Agent": WIKI_UA}), timeout=60))
+        return next(iter(d["query"]["pages"].values()))
+    page = query(1280)
     if "imageinfo" not in page:
         raise Fatal("Commons has no file %r" % file_title)
     ii = page["imageinfo"][0]
+    w = next((x for x in COMMONS_WIDTHS if x <= 1280 and x < ii.get("width", 0)), None)
+    if w and w != 1280:
+        ii = query(w)["imageinfo"][0]
     m = ii.get("extmetadata") or {}
     artist = re.sub(r"<[^>]+>", "", (m.get("Artist") or {}).get("value", "")).strip()
     lic = (m.get("LicenseShortName") or {}).get("value", "").strip()
@@ -650,7 +660,9 @@ def restyle(t, tries=2):
         v, c = chat_json(st["qa"].format(name=t["subject"]), [src, out])
         spent += c
         last = v
-        if v.get("pass"):
+        # Gate on likeness + style only: the model's own "pass" also wants realism >= 7, which a painterly
+        # portrait never gets, so it rejected 7 of 7 good likenesses (22-23 Nov).
+        if (v.get("likeness") or 0) >= 8 and v.get("style_ok"):
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             key_png(out, dest)
             subs = subjects()
