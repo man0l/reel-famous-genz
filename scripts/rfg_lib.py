@@ -3,7 +3,7 @@
 Memory lives in the skill's own data home (RFG_HOME). The picture is the skill's own Remotion composition `genz-face`
 (engine/), rendered on this box; nothing in reel-factory is needed or changed.
 Stdlib only."""
-import base64, csv, datetime as dt, json, os, re, shutil, struct, subprocess, time, urllib.error, urllib.parse, urllib.request, zipfile
+import base64, csv, fcntl, datetime as dt, json, os, re, shutil, struct, subprocess, time, urllib.error, urllib.parse, urllib.request, zipfile
 
 SKILL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACK = os.path.join(SKILL, "pack")
@@ -808,10 +808,20 @@ def cf_jobs():
         return {}
 
 
-def cf_save(j):
+def cf_set(tid, jid=None):
+    """Record (or with jid=None drop) one reel's job under a lock, re-reading the file: several runs share cf-jobs.json, and
+    writing back a stale copy dropped another run's jobs (SLA-1655, 23 Nov)."""
     os.makedirs(p("state"), exist_ok=True)
-    json.dump(j, open(p("state", "cf-jobs.json") + ".tmp", "w"), indent=1)
-    os.replace(p("state", "cf-jobs.json") + ".tmp", p("state", "cf-jobs.json"))
+    with open(p("state", "cf-jobs.lock"), "w") as lk:
+        fcntl.flock(lk, fcntl.LOCK_EX)
+        j = cf_jobs()
+        if jid:
+            j[tid] = jid
+        else:
+            j.pop(tid, None)
+        tmp = p("state", "cf-jobs.json.%d.tmp" % os.getpid())
+        json.dump(j, open(tmp, "w"), indent=1)
+        os.replace(tmp, p("state", "cf-jobs.json"))
 
 
 def cf_submit(tid, job):
@@ -851,12 +861,10 @@ def render_cloudflare(tid, wait=0):
     Submits the job unless one is already recorded, then polls for up to `wait` seconds. Raises Pending while it is still queued or
     running (the job id stays in state/cf-jobs.json, so the next call resumes), Fatal when the Worker fails it (the record is dropped,
     so the next call submits again)."""
-    jobs = cf_jobs()
-    jid = jobs.get(tid)
+    jid = cf_jobs().get(tid)
     if not jid:
         jid = cf_submit(tid, build_job(tid))
-        jobs[tid] = jid
-        cf_save(jobs)
+        cf_set(tid, jid)
     deadline = time.time() + wait
     while True:
         st, j = cf_json("GET", "/status/" + jid, timeout=30)
@@ -864,8 +872,7 @@ def render_cloudflare(tid, wait=0):
         if state == "done":
             break
         if state in ("failed", "gone"):
-            jobs.pop(tid, None)
-            cf_save(jobs)
+            cf_set(tid)
             raise Fatal("reel-remotion job %s %s: %s (render again to resubmit)" % (jid, state, str(j.get("error", ""))[:300]))
         if time.time() >= deadline:
             prog = "%s %d%%" % (j.get("phase"), int(float(j.get("progress") or 0) * 100)) if j.get("phase") else ""
@@ -879,8 +886,7 @@ def render_cloudflare(tid, wait=0):
     with open(out + ".part", "wb") as fh:
         fh.write(data)
     os.replace(out + ".part", out)
-    jobs.pop(tid, None)
-    cf_save(jobs)
+    cf_set(tid)
     return out
 
 
