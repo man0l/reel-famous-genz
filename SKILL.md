@@ -30,7 +30,7 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 | `faces/`, `stills/` | source photos, painted cutouts (`stills/faces/<slug>/cut.png`), narrator sprites (`stills/sprites/`) |
 | `work/<id>/`, `out/<id>.mp4` | script.json, voice clips, durations; render jobs and MP4s |
 | `state/spend.jsonl` | every OpenRouter call and its cost |
-| `state/hosted.json`, `state/schedule-<date>.json` | jsDelivr URLs per reel; the `create_social_post` payloads of the last `schedule` |
+| `state/hosted.json`, `state/schedule-<date>.json` | raw.githubusercontent URLs per reel (with the file sizes, so a re-render is pushed again); the `create_social_post` payloads of the last `schedule` |
 
 ## Commands (`scripts/rfg.sh <cmd>`)
 | Command | Does |
@@ -51,7 +51,7 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 | `stats <id> --views N` | add view counts to the post |
 | `learn "<text>"` | append a dated line to learnings.md |
 | `qa <id>` | automated QA: lint, 1080x1920 + audio, 20-60 s and not shorter than the voice, cover `out/<id>_cover.jpg` (frame at 1.2 s, under 2 MB). `rendered` → `qa_ok`; exit 3 on FAIL |
-| `host <id>` | push the MP4 + cover to the `media` branch, print jsDelivr URLs pinned to the commit (skips files already there) |
+| `host <id>` | push the MP4 + cover to the `media` branch, print raw.githubusercontent URLs pinned to the commit (skips files already there; a re-rendered MP4 is pushed again). Not jsDelivr: the media branch is over its 50 MB limit and new jsDelivr URLs answer 403 |
 | `plan [--start D] [--days N] [--posts F]` | slots (13:00 and 20:00 UTC) in the window: `FILL` (reel for an empty slot; board-approved first, 30-day subject cooldown), `GAP` (a reel missing some of the four accounts), `SHORT` (nothing to post), and with a saved `list_social_posts` file `ERROR`, `MISSING` (group deleted) and `MIXING` (facemetric media on these accounts). Default: tomorrow, 1 day |
 | `schedule [same args]` | `plan`, then QA + host each FILL and write `state/schedule-<date>.json`: one `create_social_post` payload per reel (all four accounts, Pinterest board, caption) |
 | `scheduled <id> --at ISO --group G [--platforms ig,yt,threads,pinterest] [--media U --cover U]` | record a created group in scheduled.jsonl; status → `scheduled` |
