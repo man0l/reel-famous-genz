@@ -228,6 +228,10 @@ def lint_script(script, t):
         out += lint_vo(b["vo"], where) if i else lint_text(b["vo"], where)
         for s in screen_texts(b):
             out += lint_text(s, where + " on screen")
+        for c in b.get("callouts") or []:
+            right = label_right(c["pos"], c.get("label", ""))
+            if right > 1060:
+                out.append("%s: callout %r ends at x=%d, past the frame (max 1060); move pos left" % (where, c.get("label"), right))
     for s in faces_of(t):
         if not credit_of(t, s):
             out.append("credit: no photo credit for %s (Commons author + licence)" % s)
@@ -283,9 +287,23 @@ def region(f):
     return r
 
 
+CALLOUT_RIGHT = 1040  # right edge a callout label may reach; lint fails past 1060
+
+
+def label_right(pos, label):
+    """Right edge of a callout's label box: the same width estimate as calloutBox in engine geometry.ts (the label is nowrap)."""
+    return pos[0] + len(label) * 30 + 44
+
+
+def fit_pos(pos, label):
+    """Shift a callout left so its label ends inside the frame; the region slots are placed for short labels."""
+    return [max(40, min(pos[0], CALLOUT_RIGHT - (label_right(pos, label) - pos[0]))), pos[1]]
+
+
 def feature_beat(f, img):
     r = region(f)
-    c = {"at": f.get("at") or r["at"], "label": f["label"].upper(), "pos": f.get("pos") or r["pos"]}
+    label = f["label"].upper()
+    c = {"at": f.get("at") or r["at"], "label": label, "pos": fit_pos(f.get("pos") or r["pos"], label)}
     if f.get("chip"):
         c["chip"] = f["chip"]
     c["w"] = f.get("w") or (640 if c["pos"][0] < 300 else 460)
@@ -375,7 +393,8 @@ def body_beat(kind, f, i, key):
                     b[k] = f[k]
     elif kind == "types":
         r = region(f)
-        c = {"at": f.get("at") or r["at"], "label": (f.get("tag") or f["region"].replace("_", " ")).upper(), "pos": f.get("pos") or r["pos"]}
+        label = (f.get("tag") or f["region"].replace("_", " ")).upper()
+        c = {"at": f.get("at") or r["at"], "label": label, "pos": fit_pos(f.get("pos") or r["pos"], label)}
         if f.get("chip"):
             c["chip"] = f["chip"]
         c["w"] = f.get("w") or (640 if c["pos"][0] < 300 else 460)

@@ -103,6 +103,16 @@ class Script(Base):
             for h in b.get("hot", []):
                 self.assertIn(L.bare(h), spoken)
 
+    def test_long_callout_label_stays_in_frame(self):
+        for tid in ("RSG0001", "RSG0007"):
+            t = seed_topic(tid)
+            s = L.build_script(t)
+            for b in s["beats"]:
+                for c in b.get("callouts") or []:
+                    self.assertLessEqual(L.label_right(c["pos"], c["label"]), L.CALLOUT_RIGHT, (tid, c["label"]))
+            s["beats"][4]["callouts"][0]["pos"] = [580, 1120]
+            self.assertIn("past the frame", " | ".join(L.lint_script(s, t)))
+
 
 D_TOPIC = {"id": "RSG0009", "template": "D", "subject": "", "slots": {"a": "Blue eyes", "b": "brown eyes"},
            "sides": {"a": "Barry Keoghan", "b": "Jacob Elordi"}, "hook_card": {"head": ["BLUE OR", "*BROWN?*"]},
