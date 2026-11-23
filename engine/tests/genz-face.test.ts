@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { calloutBox, cutRect, leadStart, plain, runs } from "../compositions/genz-face/geometry.ts";
-import { footerOf, parseScript, safeParseScript, ScriptError } from "../compositions/genz-face/schema.ts";
+import { beatAssetKeys, beatTexts, footerOf, parseScript, safeParseScript, ScriptError } from "../compositions/genz-face/schema.ts";
 import { bare, plan, stepAt, wordWindows } from "../compositions/genz-face/timing.ts";
 import { CUTS_PER_MIN, LANES, MAX_LINE_WORDS } from "../compositions/genz-face/theme.ts";
 
@@ -12,6 +12,7 @@ const DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "genz-face
 const load = (n: string): any => JSON.parse(readFileSync(join(DIR, n), "utf8"));
 const clone = (o: any): any => JSON.parse(JSON.stringify(o));
 const okNames = readdirSync(DIR).filter((f) => f.startsWith("ok-") && f.endsWith(".json")).sort();
+const sdNames = readdirSync(DIR).filter((f) => f.startsWith("sd-") && f.endsWith(".json")).sort();
 const rule = (s: any): string[] => {
   const r = safeParseScript(s);
   return r.ok ? [] : r.issues.map((i) => i.rule);
@@ -125,4 +126,47 @@ test("lint over the fixtures: no score, no rating or PSL words, no app pitch in 
     assert.ok(!banned.test(text), n);
     assert.ok(!/\d+\s*\/\s*10/.test(text), n);
   }
+});
+
+test("self-diagnosis fixtures (SLA-1653): E checks on the narrator, C numbered types, D A/B rounds; every one opens on a topic card", () => {
+  assert.deepEqual(sdNames, ["sd-C-types.json", "sd-D-compare.json", "sd-E-selftest.json"]);
+  const kinds = (n: string): string[] => parseScript(load(n)).beats.map((b) => b.kind);
+  assert.deepEqual(kinds("sd-E-selftest.json"), ["topic", "narrator", "check", "check", "check", "cta"]);
+  assert.deepEqual(kinds("sd-C-types.json"), ["topic", "narrator", "type", "type", "type", "type", "type", "type", "cta"]);
+  assert.deepEqual(kinds("sd-D-compare.json"), ["topic", "narrator", "versus", "versus", "narrator", "cta"]);
+  for (const n of sdNames) {
+    const s = parseScript(load(n));
+    assert.equal(s.episode_type, "self_diagnosis", n);
+    assert.equal(s.name, undefined, `${n}: no celebrity name`);
+    assert.ok(s.beats.at(-1)!.vo.startsWith("Comment "), n);
+  }
+  const e = parseScript(load("sd-E-selftest.json"));
+  const hook = e.beats[0] as Extract<(typeof e.beats)[number], { kind: "topic" }>;
+  assert.deepEqual(beatAssetKeys(hook), [], "E hook: no face, the narrator stands under the card");
+  assert.deepEqual(hook.pills, ["1", "2", "3"]);
+  const checks = e.beats.filter((b) => b.kind === "check");
+  assert.deepEqual(checks.map((b) => (b.kind === "check" ? b.n : 0)), [1, 2, 3]);
+  assert.deepEqual(beatAssetKeys(checks[2]), [], "the posture check has no demo face");
+  const c = parseScript(load("sd-C-types.json"));
+  assert.equal(c.beats.at(-1)!.kind === "cta" && (c.beats.at(-1) as { pills: string[] }).pills.length, 6, "C: six number pills in the CTA");
+  const d = parseScript(load("sd-D-compare.json"));
+  assert.deepEqual(beatAssetKeys(d.beats[2]), ["cut_barry_keoghan", "cut_jacob_elordi"]);
+  assert.ok(beatTexts(d.beats[2]).includes("cooler, more striking"));
+});
+
+test("self-diagnosis beats are strict: unknown faces, a third A/B face, a number out of range and seven pills are rejected", () => {
+  const e = load("sd-E-selftest.json");
+  const d = load("sd-D-compare.json");
+  const c = load("sd-C-types.json");
+  const bad = (src: any, f: (s: any) => void): string[] => {
+    const s = clone(src);
+    f(s);
+    return rule(s);
+  };
+  assert.ok(bad(e, (s) => (s.beats[2].img = "nope")).includes("E3"));
+  assert.ok(bad(d, (s) => (s.beats[2].imgs = ["cut_barry_keoghan", "nope"])).includes("E3"));
+  assert.ok(bad(d, (s) => s.beats[2].imgs.push("cut_barry_keoghan")).includes("E1"));
+  assert.ok(bad(c, (s) => (s.beats[2].n = 0)).includes("E1"));
+  assert.ok(bad(c, (s) => s.beats.at(-1).pills.push("7")).includes("E1"));
+  assert.ok(bad(e, (s) => (s.beats[2].title = "a solid 8/10")).includes("E7"));
 });

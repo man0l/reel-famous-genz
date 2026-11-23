@@ -2,7 +2,7 @@
 // Unknown keys are errors. Rule ids in messages ("[E2] ...") become SchemaIssue.rule:
 // E1 schema, E3 unknown asset key, E6 durations length, E7 no score out of 10 on screen, E8 text over 14 words.
 import { z } from "zod";
-import { MAX_CHIPS, MAX_FEATURES, MAX_LINE_WORDS, POSES } from "./theme.ts";
+import { MAX_CHIPS, MAX_FEATURES, MAX_LINE_WORDS, MAX_PILLS, POSES } from "./theme.ts";
 
 const Name = z.string().min(1);
 const Frac = z.number().min(-0.25).max(1.25);
@@ -11,6 +11,7 @@ const Xy = z.tuple([z.number(), z.number()]);
 const Pair = z.tuple([Name, Name]);
 const Stat = z.tuple([Name, z.number().int().min(0).max(99)]);
 const Pose = z.enum(POSES);
+const Num = z.number().int().min(1).max(9);
 
 /** Spoken line and on-screen words shared by every beat. `hot` words are drawn in the pink pill of the caption. */
 const common = { vo: Name, hot: z.array(Name).max(3).optional(), poses: z.array(Pose).max(8).optional() };
@@ -53,7 +54,23 @@ export const BeatSchema = z.discriminatedUnion("kind", [
     stats: z.array(Stat).length(6),
     ...common,
   }),
-  z.strictObject({ kind: z.literal("cta"), head: z.array(Name).min(1).max(3), pills: z.array(Name).min(2).max(MAX_CHIPS), on: z.number().int().min(0).optional(), tease: z.string().optional(), ...common }),
+  z.strictObject({ kind: z.literal("cta"), head: z.array(Name).min(1).max(3), pills: z.array(Name).min(2).max(MAX_PILLS), on: z.number().int().min(0).optional(), tease: z.string().optional(), ...common }),
+  /** Self-diagnosis hook (C, D, E): a topic card ("6 CHEEK TYPES") instead of the name photocard. No image = the narrator stands under it; one = a demo face; two = A/B side by side. */
+  z.strictObject({ kind: z.literal("topic"), head: z.array(Name).min(1).max(4), sub: z.string().optional(), imgs: z.array(Name).max(2).optional(), labels: z.array(Name).max(2).optional(), pills: z.array(Name).max(MAX_PILLS).optional(), ...common }),
+  /** Self-test check (E): the narrator waist-up and centred, a numbered check card above it, an optional small demo cutout with guide lines (`marks`, image-fraction y). */
+  z.strictObject({ kind: z.literal("check"), n: Num, title: Name, chip: z.string().optional(), img: Name.optional(), demo_crop: CropSchema.optional(), marks: z.array(Frac).max(5).optional(), ...common }),
+  /** Numbered type (C): the demo face like a feature beat, with the type number and name on top. */
+  z.strictObject({ kind: z.literal("type"), n: Num, title: Name, img: Name, crop: CropSchema, callouts: z.array(CalloutSchema).max(3).default([]), ...common }),
+  /** This or that (D): two faces side by side with A/B labels, the compared feature on top, one chip under each. */
+  z.strictObject({
+    kind: z.literal("versus"),
+    title: Name,
+    imgs: z.tuple([Name, Name]),
+    labels: Pair.optional(),
+    crops: z.tuple([CropSchema, CropSchema]).optional(),
+    chips: z.tuple([z.string(), z.string()]).optional(),
+    ...common,
+  }),
 ]);
 export type Beat = z.infer<typeof BeatSchema>;
 export type BeatKind = Beat["kind"];
@@ -112,7 +129,9 @@ export type Script = z.infer<typeof ScriptSchema>;
 
 /** Every asset key a beat refers to. */
 export function beatAssetKeys(b: Beat): string[] {
-  return "img" in b ? [b.img] : [];
+  if (b.kind === "topic") return b.imgs ?? [];
+  if (b.kind === "versus") return [...b.imgs];
+  return "img" in b && b.img ? [b.img] : [];
 }
 
 /** Every string a beat shows or says (for the lint rules E7). */
@@ -123,6 +142,10 @@ export function beatTexts(b: Beat): string[] {
   if (b.kind === "feature") out.push(...b.callouts.flatMap((c) => [c.label, c.chip ?? ""]));
   if (b.kind === "verdict") out.push(b.word, b.reason);
   if (b.kind === "cta") out.push(...b.pills, b.tease ?? "");
+  if (b.kind === "topic") out.push(b.sub ?? "", ...(b.labels ?? []), ...(b.pills ?? []));
+  if (b.kind === "check") out.push(b.title, b.chip ?? "");
+  if (b.kind === "type") out.push(b.title, ...b.callouts.flatMap((c) => [c.label, c.chip ?? ""]));
+  if (b.kind === "versus") out.push(b.title, ...(b.labels ?? []), ...(b.chips ?? []));
   return out.filter(Boolean);
 }
 

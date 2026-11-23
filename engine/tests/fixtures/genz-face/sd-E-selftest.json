@@ -1,0 +1,130 @@
+{
+ "format": "genz-face",
+ "reel_id": "RSG0010",
+ "template": "E",
+ "footer": "AI-edited images",
+ "lane": "B",
+ "lens": "kpop",
+ "episode_type": "self_diagnosis",
+ "tag": {
+  "en": "FACE FILE · EP.10"
+ },
+ "cite": "Portraits painted from photos by Gabriel Hutchinson, CC BY-SA 4.0; Harald Krichel, CC BY-SA 4.0, Wikimedia Commons · AI-edited images",
+ "hangul": false,
+ "assets": {
+  "idol_point": "sprites/idol_film_point.png",
+  "idol_think": "sprites/idol_film_think.png",
+  "idol_cross": "sprites/idol_film_cross.png",
+  "idol_present": "sprites/idol_film_present.png",
+  "cut_austin_butler": "faces/austin_butler/cut.png",
+  "cut_timothee_chalamet": "faces/timothee_chalamet/cut.png"
+ },
+ "sprites": {
+  "point": "idol_point",
+  "think": "idol_think",
+  "cross": "idol_cross",
+  "present": "idol_present"
+ },
+ "ratios": {
+  "cut_austin_butler": 1.3393,
+  "cut_timothee_chalamet": 1.3393
+ },
+ "beats": [
+  {
+   "kind": "topic",
+   "head": [
+    "ATTRACTIVE",
+    "TO *GIRLS?*"
+   ],
+   "vo": "It is actually really easy to tell if you are attractive to girls.",
+   "sub": "3 things that tell you",
+   "pills": [
+    "1",
+    "2",
+    "3"
+   ],
+   "hot": [
+    "easy",
+    "attractive"
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "here is how",
+    "you *check.*"
+   ],
+   "vo": "Here is how you check.",
+   "hot": [
+    "check"
+   ]
+  },
+  {
+   "kind": "check",
+   "n": 1,
+   "title": "FACIAL THIRDS",
+   "vo": "First, your facial thirds. Hairline to brows, brows to nose, nose to chin. When the three are close to equal, the face reads balanced.",
+   "chip": "hairline to brows, to nose, to chin",
+   "img": "cut_austin_butler",
+   "marks": [
+    0.265,
+    0.39,
+    0.545,
+    0.72
+   ],
+   "hot": [
+    "thirds",
+    "balanced"
+   ]
+  },
+  {
+   "kind": "check",
+   "n": 2,
+   "title": "HAIR FOR YOUR FACE SHAPE",
+   "vo": "Second, a haircut that fits your face shape. A long face wants volume at the sides. A round face wants height on top.",
+   "chip": "volume where your face needs it",
+   "img": "cut_timothee_chalamet",
+   "hot": [
+    "haircut",
+    "shape"
+   ]
+  },
+  {
+   "kind": "check",
+   "n": 3,
+   "title": "POSTURE",
+   "vo": "Third, posture. Chin level, shoulders back, neck straight. It shows all the height you already have.",
+   "chip": "chin level, shoulders back",
+   "hot": [
+    "posture",
+    "height"
+   ]
+  },
+  {
+   "kind": "cta",
+   "head": [
+    "COMMENT WHICH",
+    "YOU *PASSED*"
+   ],
+   "pills": [
+    "1",
+    "2",
+    "3"
+   ],
+   "vo": "Comment which one you passed.",
+   "hot": [
+    "comment",
+    "passed"
+   ]
+  }
+ ],
+ "sfx": true,
+ "durations": [
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0
+ ]
+}

@@ -21,9 +21,13 @@ class Base(unittest.TestCase):
         os.makedirs(L.p("stills", "sprites"), exist_ok=True)
         for pose in L.CFG["sprites"]["poses"]:
             open(L.p("stills", "sprites", "%s_%s.png" % (L.CFG["sprites"]["outfit"], pose)), "wb").write(PNG)
-        for name in ("Barry Keoghan", "Timothée Chalamet"):
+        for name in ("Barry Keoghan", "Timothée Chalamet", "Austin Butler", "Jacob Elordi"):
             os.makedirs(os.path.dirname(L.p("stills", L.cut_rel(name))), exist_ok=True)
             open(L.p("stills", L.cut_rel(name)), "wb").write(PNG)
+        subs = L.subjects()
+        for name, cr in (("Austin Butler", "Gabriel Hutchinson, CC BY-SA 4.0"), ("Timothée Chalamet", "Harald Krichel, CC BY-SA 4.0"), ("Jacob Elordi", "Raph_PH, CC BY 4.0")):
+            subs.setdefault(L.slug(name), {"name": name})["credit"] = cr
+        L.save_subjects(subs)
 
     @classmethod
     def tearDownClass(cls):
@@ -100,6 +104,93 @@ class Script(Base):
                 self.assertIn(L.bare(h), spoken)
 
 
+D_TOPIC = {"id": "RSG0009", "template": "D", "subject": "", "slots": {"a": "Blue eyes", "b": "brown eyes"},
+           "sides": {"a": "Barry Keoghan", "b": "Jacob Elordi"}, "hook_card": {"head": ["BLUE OR", "*BROWN?*"]},
+           "features": [{"label": "Eye colour", "chips": ["cooler", "warmer"], "vo": "Blue reads cooler. Brown reads warmer."},
+                        {"label": "Bone structure", "vo": "But the frame around the eyes matters more."}],
+           "turn": {"lines": ["colour is", "*not the point.*"], "vo": "Colour is not the point. Structure is."}}
+
+
+class SelfDiagnosis(Base):
+    """C, D and E have no celebrity: a topic card opens them, the body is checks / numbered types / A-B rounds, each kind has its own comment prompt."""
+
+    def test_selftest_E_is_narrator_led(self):
+        t = seed_topic("RSG0010")
+        s = L.build_script(t)
+        self.assertEqual(L.lint_script(s, t), [])
+        self.assertEqual([b["kind"] for b in s["beats"]], ["topic", "narrator", "check", "check", "check", "cta"])
+        hook = s["beats"][0]
+        self.assertEqual(hook["vo"], "It is actually really easy to tell if you are attractive to girls.")
+        self.assertNotIn("card", hook)  # no name photocard
+        self.assertNotIn("imgs", hook)  # the narrator stands under the topic card
+        self.assertEqual(hook["pills"], ["1", "2", "3"])
+        self.assertEqual([b["n"] for b in s["beats"][2:5]], [1, 2, 3])
+        self.assertEqual(s["beats"][2]["img"], "cut_austin_butler")
+        self.assertNotIn("img", s["beats"][4])  # posture: the narrator alone
+        self.assertEqual(s["beats"][-1]["vo"], "Comment which one you passed.")
+        self.assertEqual(s["episode_type"], "self_diagnosis")
+        self.assertNotIn("name", s)
+        self.assertIn("Gabriel Hutchinson", s["cite"])
+        self.assertIn("Harald Krichel", s["cite"])
+
+    def test_types_C_number_every_type_on_one_demo_face(self):
+        t = seed_topic("RSG0007")
+        s = L.build_script(t)
+        self.assertEqual(L.lint_script(s, t), [])
+        kinds = [b["kind"] for b in s["beats"]]
+        self.assertEqual(kinds, ["topic", "narrator"] + ["type"] * 6 + ["cta"])
+        self.assertEqual(s["beats"][0]["imgs"], ["cut_austin_butler"])
+        self.assertEqual([b["n"] for b in s["beats"][2:8]], [1, 2, 3, 4, 5, 6])
+        self.assertEqual({b["img"] for b in s["beats"][2:8]}, {"cut_austin_butler"})
+        self.assertEqual(s["beats"][-1]["vo"], "Comment your type.")
+        self.assertEqual(s["beats"][-1]["pills"], ["1", "2", "3", "4", "5", "6"])
+
+    def test_compare_D_side_by_side(self):
+        t = dict(D_TOPIC)
+        s = L.build_script(t)
+        self.assertEqual(L.lint_script(s, t), [])
+        self.assertEqual([b["kind"] for b in s["beats"]], ["topic", "narrator", "versus", "versus", "narrator", "cta"])
+        self.assertEqual(s["beats"][0]["vo"], "Blue eyes or brown eyes? Which do you find more attractive?")
+        self.assertEqual(s["beats"][0]["labels"], ["A", "B"])
+        self.assertEqual(s["beats"][2]["imgs"], ["cut_barry_keoghan", "cut_jacob_elordi"])
+        self.assertEqual(s["beats"][2]["chips"], ["cooler", "warmer"])
+        self.assertEqual(s["beats"][-1]["vo"], "Comment A or B.")
+        with self.assertRaises(L.Fatal):
+            L.build_script(dict(D_TOPIC, sides={"a": "Barry Keoghan"}))
+
+    def test_lint_wants_a_topic_card_and_a_comment_prompt(self):
+        t = seed_topic("RSG0010")
+        s = L.build_script(t)
+        s["beats"][0]["kind"] = "hook"
+        s["beats"][-1]["vo"] = "Download the app to check."
+        bad = " | ".join(L.lint_script(s, t))
+        self.assertIn("topic card", bad)
+        self.assertIn("starts with", bad)
+        t2 = seed_topic("RSG0001")
+        s2 = L.build_script(t2)
+        s2["beats"][0]["kind"] = "topic"
+        self.assertTrue(any("name photocard" in b for b in L.lint_script(s2, t2)))
+
+    def test_body_counts_per_kind(self):
+        t = seed_topic("RSG0010")
+        t["features"] = t["features"][:2]
+        with self.assertRaises(L.Fatal):
+            L.build_script(t)
+        t = seed_topic("RSG0007")
+        t["features"] = t["features"][:3]
+        with self.assertRaises(L.Fatal):
+            L.build_script(t)
+
+    def test_caption_and_faces_without_subject(self):
+        t = seed_topic("RSG0010")
+        self.assertEqual(L.faces_of(t), ["Austin Butler", "Timothée Chalamet"])
+        c = L.caption(t).split("\n")
+        self.assertEqual(c[0], "It is actually really easy to tell if you are attractive to girls.")
+        self.assertTrue(c[1].endswith("Comment which one you passed."))
+        self.assertIn("Gabriel Hutchinson", c[2])
+        self.assertEqual(c[3].split()[0], "#selftest")
+
+
 class Memory(Base):
     def test_rotation_and_next(self):
         nx = L.next_topic()
@@ -156,6 +247,27 @@ class Schedule(Base):
         self.assertTrue(any(n.startswith("MIXING 2030-01-01T20:00:00Z") for n in pl["notes"]))
         self.assertTrue(any(n.startswith("MISSING 2030-01-02T13:00:00Z RSG0009") for n in pl["notes"]))
         self.assertEqual(pl["fills"][0], {"reel": "RSG0001", "publishAt": "2030-01-01T20:00:00Z", "status": "qa_ok", "subject": "Barry Keoghan"})
+
+    def test_self_diagnosis_reels_skip_cooldown_and_blocked_templates_wait(self):
+        rows = L.topics()
+        for r in rows:
+            if r["id"] in ("RSG0007", "RSG0010"):
+                r["status"], r["subject"] = "qa_ok", ""
+        L.save_topics(rows)
+        for tid in ("RSG0007", "RSG0010"):
+            open(L.p("out", tid + ".mp4"), "wb").write(b"x")
+        try:
+            blocked = dict(L.SCHED["blocked_templates"])
+            L.SCHED["blocked_templates"] = {}
+            pl = L.plan(L.dt.date(2030, 1, 1), 2)
+            self.assertEqual(sorted(f["reel"] for f in pl["fills"]), ["RSG0001", "RSG0002", "RSG0007", "RSG0010"])  # two subject-less reels don't cool each other down
+            L.SCHED["blocked_templates"] = {"C": "x", "E": "x"}
+            pl = L.plan(L.dt.date(2030, 1, 1), 2)
+            self.assertEqual(sorted(f["reel"] for f in pl["fills"]), ["RSG0001", "RSG0002"])
+        finally:
+            L.SCHED["blocked_templates"] = blocked
+            for tid in ("RSG0007", "RSG0010"):
+                os.remove(L.p("out", tid + ".mp4"))
 
     def test_caption(self):
         c = L.caption(seed_topic("RSG0001")).split("\n")

@@ -58,7 +58,11 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 | `supply [--start D] [--days 3]` | open slots vs postable reels, the next topics to make, templates still blocked; last line `SUPPLY OK` or `SUPPLY WARN` |
 
 ## Writing a topic
-1. Pick a template (`rfg.sh hooks`) and the least-used one if in doubt (`rfg.sh status`). C, D and E have no single celebrity: give each feature its own `subject` (each needs its own photo and cutout). The card is optional there.
+1. Pick a template (`rfg.sh hooks`) and the least-used one if in doubt (`rfg.sh status`). C, D and E have no single celebrity: leave `subject` empty and set `hook_card` (`head` lines, `sub`) for the topic card that replaces the name photocard. The card is optional there.
+   - **E self-test** (`selftest`, 3-4 checks): each feature becomes a numbered check card above the narrator (waist-up, centred). A feature with a `subject` also shows that face as a small demo card; `marks` (image-fraction y) draws guide lines on it. RSG0010 is the worked example.
+   - **C types** (`types`, 4-6): one `demo` face for every type (or a `subject` per feature), each a numbered type beat with one callout (`tag`, `at`, `crop`, `pos`). RSG0007 is the worked example.
+   - **D this or that** (`compare`, 2-4 rounds): the topic sets `sides: {a: face A, b: face B}` (a feature may override with its own `sides: [A, B]`), optional `labels`, `chips`, `crops`; the topic card shows both faces with A/B.
+   - CTA per kind (`pack/hooks.json` → `cta`): E "Comment which one you passed.", C "Comment your type.", D "Comment A or B." Celebrity reels keep "Comment who I should break down next."
 2. Find a frontal Commons photo (CC BY, CC BY-SA, CC0 or PD), and put the `File:...` title in `photo.commons_file`.
 3. Features: `region` is one of hair, brows, eyes, eye_colour, nose, cheekbones, lips, jaw, chin, skin. The default anchors fit a cutout whose face sits like Keoghan's. **After `restyle`, look at the cutout** and set `at` (image fractions) and `crop.y` per feature when the face sits higher or lower. Chalamet (RSG0002) is the worked example.
 4. Before a full render, render one still per beat to check the layout: copy `out/<id>/job`, set `still_composition: "genz-face"` and `still_frame: N` in its job.json, and run `engine/render.sh <job> <out.jpg>`. It takes about 15 s a frame.
@@ -77,7 +81,7 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 - Accounts and slots live in `pack/config.json` → `schedule`: Instagram `jennymaxxer`, YouTube `looksmaxxers-d1q`, Threads `jennymaxxer`, Pinterest `jennymaxxing` (board `1088323134893667526`), 13:00 and 20:00 UTC.
 - The skill cannot call Slashloop. For each payload of `schedule`: `upload_social_media` on `upload.video` and `upload.thumbnail`, put the two returned URLs in `media[0].url` / `media[0].thumbnail`, `create_social_post` with `integrationIds`, `content`, `media`, `publishAt`, `settings` exactly as written, then `rfg.sh scheduled <id> --at <publishAt> --group <groupId>`.
 - Caption = hook / line 2 + card + CTA / photo credit + "AI-edited images" / 5 hashtags. Line 2 and the hashtags come from the topic's `caption` and `tags` when set (write them by hand), else from the feature labels.
-- Templates C, D and E are blocked in `schedule.blocked_templates` until their layouts exist (SLA-1653).
+- Templates C, D and E have their layouts (SLA-1653) but stay in `schedule.blocked_templates` until the board approves the first E and C reels (RSG0010, RSG0007) on SLA-1643. Remove a template from the list on board direction only.
 
 ## Tests
 `cd <skill> && python3 -m unittest discover -s tests`: hook templates, slot whitelists, lint rules, script shape, hot words, rotation and memory. No network or spend.

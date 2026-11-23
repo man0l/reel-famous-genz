@@ -71,6 +71,16 @@ export const NARRATOR = { full: 1080, side: 760, sideRight: -20, punch: 0.04, pu
 /** Photocard (hook): the holo frame around the painted cutout. */
 export const PHOTOCARD = { width: 740, left: 170, top: 560, innerH: 880, border: 12, radius: 40 } as const;
 
+/** Self-diagnosis layouts (C, D, E): the demo card of a check (crop = image width / left / top in card pixels), the topic card and the A/B panels. */
+export const SELFTEST = {
+  demoW: 380,
+  demoH: 520,
+  demoCrop: { w: 600, x: -110, y: -150 },
+  topicCardH: 700,
+  versusH: 700,
+  versusCrop: { w: 760, x: -140, y: -150 },
+} as const;
+
 /** Rhythm: 22-28 cuts a minute from pose swaps on caption groups and callout pops (a cut is never closer than MIN_CUT_GAP_S to the last). */
 export const CUTS_PER_MIN = { min: 22, max: 28 } as const;
 export const MIN_CUT_GAP_S = 1.4;
@@ -84,5 +94,7 @@ export const MAX_FEATURES = 6;
 /** BUILD-BRIEF section 6: lines under 14 words. */
 export const MAX_LINE_WORDS = 13;
 export const MAX_CHIPS = 4;
+/** CTA / topic pills: up to six (C: "1"-"6"). */
+export const MAX_PILLS = 6;
 export const POSES = ["point", "think", "cross", "present", "shock", "approve", "hair", "profile", "phone"] as const;
 export type Pose = (typeof POSES)[number];

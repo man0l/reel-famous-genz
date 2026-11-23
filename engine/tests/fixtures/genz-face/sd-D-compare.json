@@ -1,0 +1,127 @@
+{
+ "format": "genz-face",
+ "reel_id": "RSG0009",
+ "template": "D",
+ "footer": "AI-edited images",
+ "lane": "B",
+ "lens": "kpop",
+ "episode_type": "self_diagnosis",
+ "tag": {
+  "en": "FACE FILE · EP.09"
+ },
+ "cite": "Portraits painted from photos by Senior Airman Austin Pate, public domain (US Air Force); Raph_PH, CC BY 4.0, Wikimedia Commons · AI-edited images",
+ "hangul": false,
+ "assets": {
+  "idol_point": "sprites/idol_film_point.png",
+  "idol_think": "sprites/idol_film_think.png",
+  "idol_cross": "sprites/idol_film_cross.png",
+  "idol_present": "sprites/idol_film_present.png",
+  "cut_barry_keoghan": "faces/barry_keoghan/cut.png",
+  "cut_jacob_elordi": "faces/jacob_elordi/cut.png"
+ },
+ "sprites": {
+  "point": "idol_point",
+  "think": "idol_think",
+  "cross": "idol_cross",
+  "present": "idol_present"
+ },
+ "ratios": {
+  "cut_barry_keoghan": 1.2946,
+  "cut_jacob_elordi": 1.3393
+ },
+ "beats": [
+  {
+   "kind": "topic",
+   "head": [
+    "BLUE OR",
+    "*BROWN?*"
+   ],
+   "vo": "Blue eyes or brown eyes? Which do you find more attractive?",
+   "sub": "which do you find more attractive?",
+   "imgs": [
+    "cut_barry_keoghan",
+    "cut_jacob_elordi"
+   ],
+   "labels": [
+    "A",
+    "B"
+   ],
+   "hot": [
+    "attractive",
+    "attractive?"
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "let's put them",
+    "*side by side.*"
+   ],
+   "vo": "Let's put them side by side.",
+   "hot": [
+    "side"
+   ]
+  },
+  {
+   "kind": "versus",
+   "title": "EYE COLOUR",
+   "imgs": [
+    "cut_barry_keoghan",
+    "cut_jacob_elordi"
+   ],
+   "vo": "Blue reads cooler and more striking. Brown reads warmer and softer.",
+   "chips": [
+    "cooler, more striking",
+    "warmer, softer"
+   ]
+  },
+  {
+   "kind": "versus",
+   "title": "BONE STRUCTURE",
+   "imgs": [
+    "cut_barry_keoghan",
+    "cut_jacob_elordi"
+   ],
+   "vo": "But the frame around the eyes matters more than the colour.",
+   "chips": [
+    "soft frame",
+    "sharp frame"
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "colour is",
+    "*not the point.*"
+   ],
+   "vo": "So colour is not what makes eyes attractive. Structure is.",
+   "hot": []
+  },
+  {
+   "kind": "cta",
+   "head": [
+    "COMMENT",
+    "*A* OR *B*"
+   ],
+   "pills": [
+    "A",
+    "B"
+   ],
+   "vo": "Comment A or B.",
+   "hot": [
+    "comment",
+    "A",
+    "B"
+   ]
+  }
+ ],
+ "sfx": true,
+ "durations": [
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0
+ ]
+}

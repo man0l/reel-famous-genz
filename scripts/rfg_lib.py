@@ -203,26 +203,34 @@ def lint_script(script, t):
     """Every rule of the account (decisions.md) that a machine can check. Returns a list of problems (empty = ok)."""
     out = []
     beats = script["beats"]
+    kind = HOOKS["templates"][t["template"]]["kind"]
     want = " ".join(hook_lines(t))
-    if not beats or beats[0]["kind"] != "hook" or beats[0]["vo"] != want:
+    if not beats or beats[0]["vo"] != want:
         out.append("hook: must be the @glowupmenclub template %s word for word: %r" % (t["template"], want))
+    hook_kind = "hook" if kind == "celebrity" else "topic"
+    if beats and beats[0]["kind"] != hook_kind:
+        out.append("hook: a %s reel opens on the %s beat (%s), not %r" % (kind, hook_kind, "name photocard" if kind == "celebrity" else "topic card, no name", beats[0]["kind"]))
     if len(beats) < 2 or beats[1]["kind"] != "narrator" or beats[1]["vo"] != bridge_line(t):
         out.append("bridge: must be %r" % bridge_line(t))
-    nf = sum(1 for b in beats if b["kind"] == "feature")
-    if not CFG["features"]["min"] <= nf <= CFG["features"]["max"]:
-        out.append("features: %d feature beats (want %d-%d)" % (nf, CFG["features"]["min"], CFG["features"]["max"]))
+    lo, hi = body_range(kind)
+    nf = sum(1 for b in beats if b["kind"] == BODY[kind])
+    if not lo <= nf <= hi:
+        out.append("%s: %d %s beats (want %d-%d)" % (BODY[kind], nf, BODY[kind], lo, hi))
     kinds = [b["kind"] for b in beats]
-    if HOOKS["templates"][t["template"]]["kind"] == "celebrity" and "walkout" not in kinds:
+    if kind == "celebrity" and "walkout" not in kinds:
         out.append("payoff: a celebrity breakdown ends on the game card (walkout beat)")
     if kinds[-1] != "cta":
         out.append("cta: the last beat must be the comment prompt")
+    elif not beats[-1]["vo"].startswith("Comment "):
+        out.append("cta: the comment prompt starts with \"Comment \": %r" % beats[-1]["vo"])
     for i, b in enumerate(beats):
         where = "beat %d (%s)" % (i, b["kind"])
         out += lint_vo(b["vo"], where) if i else lint_text(b["vo"], where)
         for s in screen_texts(b):
             out += lint_text(s, where + " on screen")
-    if not t.get("photo", {}).get("credit"):
-        out.append("credit: topic has no photo credit (Commons author + licence)")
+    for s in faces_of(t):
+        if not credit_of(t, s):
+            out.append("credit: no photo credit for %s (Commons author + licence)" % s)
     return out
 
 
@@ -232,7 +240,9 @@ def screen_texts(b):
     for c in b.get("callouts") or []:
         out += [c.get("label", ""), c.get("chip", "")]
     out += b.get("pills") or []
-    out += [b.get("tease") or "", b.get("sub") or "", b.get("name") or ""]
+    out += b.get("labels") or []
+    out += b.get("chips") if isinstance(b.get("chips"), list) and all(isinstance(x, str) for x in b["chips"]) else []
+    out += [b.get("tease") or "", b.get("sub") or "", b.get("name") or "", b.get("title") or "", b.get("chip") or ""]
     return [x for x in out if x]
 
 
@@ -312,42 +322,142 @@ def sprite_assets():
     return sprites, assets
 
 
+# body beat of each hook kind: celebrity features, self-test checks (E), numbered types (C), this-or-that rounds (D)
+BODY = {"celebrity": "feature", "selftest": "check", "types": "type", "compare": "versus"}
+
+
+def body_range(kind):
+    r = (CFG["features"].get("by_kind") or {}).get(kind)
+    return tuple(r) if r else (CFG["features"]["min"], CFG["features"]["max"])
+
+
+def sides_of(t):
+    sd = t.get("sides") or {}
+    return [sd[k] for k in ("a", "b") if sd.get(k)]
+
+
+def faces_of(t):
+    """Every painted face the reel shows: the subject (celebrity), the demo face (C, E), the A/B faces (D) and per-feature faces, in order."""
+    names = [t.get("subject") or "", t.get("demo") or ""] + sides_of(t) + [f.get("subject") or "" for f in t.get("features") or []]
+    return [n for n in dict.fromkeys(names) if n]
+
+
+def credit_of(t, s):
+    """Commons credit of a face: the topic's photo for its own subject, else subjects.json, else any topic that has that subject."""
+    if s == t.get("subject") and (t.get("photo") or {}).get("credit"):
+        return t["photo"]["credit"]
+    cr = (subjects().get(slug(s)) or {}).get("credit")
+    if cr:
+        return cr
+    d = p("topics")
+    for f in sorted(os.listdir(d)) if os.path.isdir(d) else []:
+        try:
+            o = json.load(open(os.path.join(d, f), encoding="utf-8"))
+        except Exception:
+            continue
+        if o.get("subject") == s and (o.get("photo") or {}).get("credit"):
+            return o["photo"]["credit"]
+    return None
+
+
+def body_beat(kind, f, i, key):
+    """One body beat of a self-diagnosis reel. `key(name)` -> asset key of a face."""
+    title = f["label"].upper()
+    hot = hot_of(f["vo"], f.get("hot") or f["label"].lower().split()[-1:])
+    if kind == "selftest":
+        b = {"kind": "check", "n": i + 1, "title": title, "vo": f["vo"]}
+        if f.get("chip"):
+            b["chip"] = f["chip"]
+        if f.get("subject"):
+            b["img"] = key(f["subject"])
+            for k in ("marks", "demo_crop"):
+                if f.get(k):
+                    b[k] = f[k]
+    elif kind == "types":
+        r = region(f)
+        c = {"at": f.get("at") or r["at"], "label": (f.get("tag") or f["region"].replace("_", " ")).upper(), "pos": f.get("pos") or r["pos"]}
+        if f.get("chip"):
+            c["chip"] = f["chip"]
+        c["w"] = f.get("w") or (640 if c["pos"][0] < 300 else 460)
+        b = {"kind": "type", "n": i + 1, "title": title, "img": key(f["subject"]), "crop": f.get("crop") or r["crop"], "callouts": [c], "vo": f["vo"]}
+    else:
+        b = {"kind": "versus", "title": title, "imgs": [key(f["sides"][0]), key(f["sides"][1])], "vo": f["vo"]}
+        for k in ("labels", "chips", "crops"):
+            if f.get(k):
+                b[k] = f[k]
+    if hot:
+        b["hot"] = hot
+    return b
+
+
 def build_script(t):
-    """Topic -> script.json for the `genz-face` composition in engine/ (lane B tokens, kpop stage), in the @glowupmenclub beat order:
-    hook with the name -> "so let's break down what his face actually has" -> 4-6 features with callouts -> game card -> comment prompt."""
+    """Topic -> script.json for the `genz-face` composition in engine/ (lane B tokens, kpop stage), in the @glowupmenclub beat order.
+    Celebrity (A, A', A+, B): name photocard hook -> "so let's break down what his face actually has" -> 4-6 features with callouts -> game card -> comment prompt.
+    Self-diagnosis (no celebrity): topic-card hook -> bridge -> E: 3-4 numbered checks on the narrator / C: numbered types on one demo face /
+    D: A/B rounds side by side -> optional turn -> the kind's comment prompt."""
     kind = HOOKS["templates"][t["template"]]["kind"]
-    name = t["subject"]
+    name = t.get("subject") or ""
+    if kind == "celebrity" and not name:
+        raise Fatal("%s: a celebrity breakdown needs `subject`" % t["id"])
     pr = pron(t)
-    feats = t.get("features") or []
-    if not CFG["features"]["min"] <= len(feats) <= CFG["features"]["max"]:
-        raise Fatal("%s: needs %d-%d features, has %d" % (t["id"], CFG["features"]["min"], CFG["features"]["max"], len(feats)))
+    feats = [dict(f) for f in t.get("features") or []]
+    lo, hi = body_range(kind)
+    if not lo <= len(feats) <= hi:
+        raise Fatal("%s: a %s reel needs %d-%d features, has %d" % (t["id"], kind, lo, hi, len(feats)))
     missing = [f.get("label") for f in feats if not f.get("vo")]
     if missing:
         raise Fatal("%s: features without a spoken line (run `rfg.sh copy %s` or write `vo`): %s" % (t["id"], t["id"], ", ".join(map(str, missing))))
+    sides = sides_of(t)
+    if kind == "types":
+        for f in feats:
+            f["subject"] = f.get("subject") or t.get("demo")
+            if not f["subject"]:
+                raise Fatal("%s: a types reel needs `demo` (the face for the types) or a `subject` per feature" % t["id"])
+    if kind == "compare":
+        if len(sides) != 2:
+            raise Fatal("%s: a this-or-that reel needs `sides` {a, b} (two faces)" % t["id"])
+        for f in feats:
+            f["sides"] = f.get("sides") or sides
     sprites, sassets = sprite_assets()
-    subjects_used = [name] + [f["subject"] for f in feats if f.get("subject")]
+    faces = faces_of(dict(t, features=feats))
     assets, ratios = dict(sassets), {}
-    for s in dict.fromkeys(subjects_used):
-        key = "cut" if s == name else "cut_" + slug(s)
+    key = lambda s: "cut" if (not s or s == name) else "cut_" + slug(s)
+    for s in faces:
         rel = cut_rel(s)
         if not os.path.exists(p("stills", rel)):
             raise Fatal("%s: no painted cutout for %s (run `rfg.sh restyle %s`)" % (t["id"], s, t["id"]))
-        assets[key], ratios[key] = rel, png_ratio(p("stills", rel))
-    img_of = lambda s: "cut" if (not s or s == name) else "cut_" + slug(s)
+        assets[key(s)], ratios[key(s)] = rel, png_ratio(p("stills", rel))
     ep = int(t.get("ep") or re.sub(r"\D", "", t["id"]) or 1)
     hook = hook_lines(t)
-    hb = {"kind": "hook", "img": "cut", "head": head_lines(hook[0]), "card": [first(name).upper(), t.get("card_line") or "face file · ep.%02d" % ep],
-          "badge": CFG["badge"], "vo": " ".join(hook)}
-    if len(hook) > 1:
-        hb["sub"] = hook[1].lower() if len(hook[1]) < 70 else hook[1]
-    hb["hot"] = hot_of(hb["vo"], [first(name), "attractive", "viral"])
+    if kind == "celebrity":
+        hb = {"kind": "hook", "img": "cut", "head": head_lines(hook[0]), "card": [first(name).upper(), t.get("card_line") or "face file · ep.%02d" % ep],
+              "badge": CFG["badge"], "vo": " ".join(hook)}
+        if len(hook) > 1:
+            hb["sub"] = hook[1].lower() if len(hook[1]) < 70 else hook[1]
+        hb["hot"] = hot_of(hb["vo"], [first(name), "attractive", "viral"])
+    else:
+        hc = t.get("hook_card") or {}
+        hb = {"kind": "topic", "head": hc.get("head") or head_lines(hook[0]), "vo": " ".join(hook)}
+        if hc.get("sub"):
+            hb["sub"] = hc["sub"]
+        if kind == "types":
+            hb["imgs"] = [key(t.get("demo") or feats[0]["subject"])]
+        elif kind == "compare":
+            hb["imgs"], hb["labels"] = [key(s) for s in sides], (t.get("sides") or {}).get("labels") or ["A", "B"]
+        elif kind == "selftest":
+            hb["pills"] = [str(i + 1) for i in range(len(feats))]
+        hb["hot"] = hot_of(hb["vo"], hc.get("hot") or ["easy", "attractive", "types", "attractive?"])
     beats = [hb]
     br = bridge_line(t)
-    beats.append({"kind": "narrator", "lines": t.get("bridge_lines") or ["so let's break down", "what %s face" % pr["his"], "*actually has.*"], "vo": br, "hot": hot_of(br, ["face", "actually"])})
-    for f in feats:
-        beats.append(feature_beat(f, img_of(f.get("subject"))))
+    blines = t.get("bridge_lines") or HOOKS.get("bridge_lines", {}).get(kind) or ["so let's break down", "what %s face" % pr["his"], "*actually has.*"]
+    beats.append({"kind": "narrator", "lines": blines, "vo": br, "hot": hot_of(br, ["face", "actually", "check", "one", "side"])})
+    for i, f in enumerate(feats):
+        beats.append(feature_beat(f, key(f.get("subject"))) if kind == "celebrity" else body_beat(kind, f, i, key))
+    turn = t.get("turn")
+    if turn:
+        beats.append({"kind": "narrator", "lines": turn["lines"], "vo": turn["vo"], "hot": hot_of(turn["vo"], turn.get("hot") or [])})
     card = t.get("card")
-    if kind == "celebrity" or card:
+    if kind == "celebrity" or (card and name):
         if not card:
             raise Fatal("%s: a celebrity breakdown needs `card` (ovr, rarity, stats)" % t["id"])
         stats = card["stats"]
@@ -357,26 +467,34 @@ def build_script(t):
         vo = card.get("vo") or "Put it all together and %s face card comes out at %d." % (pr["his"], int(card["ovr"]))
         beats.append({"kind": "walkout", "img": "cut", "name": name.upper(), "sub": card.get("sub") or "face card", "ovr": int(card["ovr"]), "rarity": card["rarity"],
                       "stats": [[k, int(stats[k])] for k in CFG["card"]["stats"]], "vo": vo, "hot": hot_of(vo, [str(card["ovr"]), "card"])})
+    dflt = HOOKS.get("cta", {}).get(kind) or {}
     cta = t.get("cta") or {}
     nxt = t.get("next") or []
-    pills = cta.get("pills") or [x.upper() for x in nxt[:4]] or ["WHO'S NEXT?"]
+    pills = cta.get("pills") or dflt.get("pills") or [x.upper() for x in nxt[:4]] or ["WHO'S NEXT?"]
+    if pills == "#":
+        pills = [str(i + 1) for i in range(len(feats))]
     if len(pills) < 2:
         pills = pills + ["SOMEONE ELSE"]
-    cvo = cta.get("vo") or "Comment who I should break down next."
-    c = {"kind": "cta", "head": cta.get("head") or ["COMMENT", "WHO'S *NEXT*"], "pills": pills, "vo": cvo, "hot": hot_of(cvo, cta.get("hot") or ["next", "comment"])}
+    cvo = cta.get("vo") or dflt.get("vo") or "Comment who I should break down next."
+    c = {"kind": "cta", "head": cta.get("head") or dflt.get("head") or ["COMMENT", "WHO'S *NEXT*"], "pills": pills, "vo": cvo,
+         "hot": hot_of(cvo, cta.get("hot") or ["next", "comment", "passed", "type", "A", "B"])}
     if cta.get("tease"):
         c["tease"] = cta["tease"]
     beats.append(c)
     credits = []
-    for s in dict.fromkeys(subjects_used):
-        cr = (t.get("photo") or {}).get("credit") if s == name else (subjects().get(slug(s)) or {}).get("credit")
+    for s in faces:
+        cr = credit_of(t, s)
         if not cr:
             raise Fatal("%s: no photo credit for %s" % (t["id"], s))
-        credits.append(cr)
+        if cr not in credits:
+            credits.append(cr)
     cite = "Portraits painted from photos by %s, Wikimedia Commons" % "; ".join(credits) if len(credits) > 1 else "Portrait painted from a photo by %s, Wikimedia Commons" % credits[0]
-    return {"format": "genz-face", "reel_id": t["id"], "template": t["template"], "footer": CFG["footer"], "lane": CFG["lane"], "lens": CFG["lens"],
-            "episode_type": "celebrity" if kind in ("celebrity", "compare") else "self_diagnosis", "tag": {"en": CFG["tag"] % ep}, "name": name,
-            "cite": "%s · %s" % (cite, CFG["footer"]), "hangul": False, "assets": assets, "sprites": sprites, "ratios": ratios, "beats": beats, "sfx": True}
+    out = {"format": "genz-face", "reel_id": t["id"], "template": t["template"], "footer": CFG["footer"], "lane": CFG["lane"], "lens": CFG["lens"],
+           "episode_type": "celebrity" if kind == "celebrity" else "self_diagnosis", "tag": {"en": CFG["tag"] % ep},
+           "cite": "%s · %s" % (cite, CFG["footer"]), "hangul": False, "assets": assets, "sprites": sprites, "ratios": ratios, "beats": beats, "sfx": True}
+    if name:
+        out["name"] = name
+    return out
 
 
 # ---------- OpenRouter ----------
@@ -542,6 +660,16 @@ def restyle(t, tries=2):
     raise Fatal("no painted cutout of %s passed QA ($%.3f spent): %s" % (t["subject"], spent, last.get("notes", "")))
 
 
+def restyle_all(t):
+    """Restyle every face the reel shows that has no cutout yet (subject, demo, A/B sides, per-feature faces). Returns USD spent."""
+    usd = 0.0
+    for s in faces_of(t):
+        if os.path.exists(p("stills", cut_rel(s))):
+            continue
+        usd += restyle(t if s == t.get("subject") else dict(t, subject=s, photo=(subjects().get(slug(s)) or {})))
+    return usd
+
+
 # ---------- copy (optional LLM help for missing feature lines) ----------
 COPY_PROMPT = """Write the spoken voice-over for a face-breakdown short in the style of @glowupmenclub: calm, confident, plain English, explains why each feature works.
 Subject: {name}. Features in order (one line each): {features}
@@ -553,7 +681,7 @@ Reply JSON only: {{"feature_vo": [{n} strings]}}"""
 def llm_feature_lines(t):
     feats = t["features"]
     desc = " | ".join("%d. %s (%s)" % (i + 1, f["label"], f.get("chip") or f.get("region")) for i, f in enumerate(feats))
-    v, _ = chat_json(COPY_PROMPT.format(name=t["subject"], features=desc, n=len(feats)), kind="script")
+    v, _ = chat_json(COPY_PROMPT.format(name=t.get("subject") or "a self-test for the viewer (no celebrity)", features=desc, n=len(feats)), kind="script")
     lines = v.get("feature_vo")
     if not isinstance(lines, list) or len(lines) != len(feats):
         raise Fatal("LLM reply has no usable feature_vo: %s" % str(v)[:200])
@@ -634,9 +762,9 @@ def rotation():
 
 def next_topic():
     cool = dt.timedelta(days=CFG["rotation"]["subject_cooldown_days"])
-    recent = {slug(x["subject"]) for x in jsonl("posted.jsonl") if dt.datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > dt.datetime.now(dt.timezone.utc) - cool}
+    recent = {slug(x["subject"]) for x in jsonl("posted.jsonl") if x.get("subject") and dt.datetime.fromisoformat(x["t"].replace("Z", "+00:00")) > dt.datetime.now(dt.timezone.utc) - cool}
     used = rotation()
-    ready = [r for r in topics() if r["status"] in ("ready", "restyled", "scripted", "voiced") and slug(r["subject"]) not in recent]
+    ready = [r for r in topics() if r["status"] in ("ready", "restyled", "scripted", "voiced") and not (r["subject"] and slug(r["subject"]) in recent)]
     ready.sort(key=lambda r: (used.get(r["template"], 0), STATUSES.index(r["status"]) * -1, r["id"]))
     return ready[0] if ready else None
 
@@ -718,10 +846,10 @@ def caption(t):
     card = t.get("card") or {}
     if card.get("ovr"):
         body += " %s face card comes out at %d." % (pr["his"].capitalize(), card["ovr"])
-    body += " " + (t.get("cta") or {}).get("vo", "Comment who I should break down next.")
-    credits = [t["photo"]["credit"]] if (t.get("photo") or {}).get("credit") else []
-    for f in t.get("features") or []:
-        c = (subjects().get(slug(f.get("subject") or "")) or {}).get("credit")
+    body += " " + s["beats"][-1]["vo"]  # the reel's own comment prompt (per kind)
+    credits = []
+    for s in faces_of(t):
+        c = credit_of(t, s)
         if c and c not in credits:
             credits.append(c)
     photo = ("Photo: %s, via Wikimedia Commons. " % "; ".join(credits)) if credits else ""
@@ -838,9 +966,11 @@ def plan(start, days, posts_file=None):
             have.setdefault(iso(r["publishAt"]), {}).setdefault(r["id"], set()).update(names.get(x, x) for x in r.get("platforms", []))
     used_ids = {r["id"] for r in sched}
     cool = dt.timedelta(days=CFG["rotation"]["subject_cooldown_days"])
-    taken_subj = {slug(r["subject"]): iso(r["publishAt"]) for r in sched}
+    taken_subj = {slug(r["subject"]): iso(r["publishAt"]) for r in sched if r.get("subject")}  # self-diagnosis reels (no subject) never cool down
     rows = {r["id"]: r for r in topics()}
-    pool = [r for r in topics() if r["status"] in SCHED["postable"] and r["id"] not in used_ids and os.path.exists(p("out", r["id"] + ".mp4"))]
+    blocked = SCHED.get("blocked_templates") or {}
+    pool = [r for r in topics() if r["status"] in SCHED["postable"] and r["id"] not in used_ids and r["template"] not in blocked
+            and os.path.exists(p("out", r["id"] + ".mp4"))]
     pool.sort(key=lambda r: (SCHED["postable"].index(r["status"]), r["id"]))  # board-approved first
     fills, gaps, short = [], [], []
     for at in slot_times(start, days):
@@ -853,14 +983,15 @@ def plan(start, days, posts_file=None):
             continue
         pick = None
         for r in pool:
-            last = taken_subj.get(slug(r["subject"]))
+            last = taken_subj.get(slug(r["subject"])) if r["subject"] else None
             if last and abs(dt.datetime.fromisoformat(at.replace("Z", "+00:00")) - dt.datetime.fromisoformat(last.replace("Z", "+00:00"))) < cool:
                 continue
             pick = r
             break
         if pick:
             pool.remove(pick)
-            taken_subj[slug(pick["subject"])] = at
+            if pick["subject"]:
+                taken_subj[slug(pick["subject"])] = at
             fills.append({"reel": pick["id"], "publishAt": at, "status": pick["status"], "subject": pick["subject"]})
         else:
             short.append(at)

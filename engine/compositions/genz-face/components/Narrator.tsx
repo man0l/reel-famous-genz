@@ -11,6 +11,10 @@ export const DEFAULT_POSES: Record<string, Pose[]> = {
   hook: ["point"],
   pack: ["point"],
   feature: ["point"],
+  topic: ["think", "point"],
+  check: ["point", "think", "present", "cross"],
+  type: ["point"],
+  versus: ["point"],
 };
 
 /** The sprite asset for a pose; a pose the outfit has no sprite for (shock / approve until SLA-1641 delivers them) falls back to the first pose it has. */

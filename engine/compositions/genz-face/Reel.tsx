@@ -7,6 +7,7 @@ import { Caption, Credit, Tag } from "./components/Text.tsx";
 import { DEFAULT_POSES, Narrator, spriteFor } from "./components/Narrator.tsx";
 import { CalloutView } from "./components/Callout.tsx";
 import { BridgeText, CtaView, HookView, PackView, VerdictView, WalkoutView } from "./components/Cards.tsx";
+import { CheckView, TopicView, TypeHeader, VersusView } from "./components/SelfTest.tsx";
 import { cutRect } from "./geometry.ts";
 import { footerOf, parseScript, type Beat, type Script } from "./schema.ts";
 import { FPS } from "./theme.ts";
@@ -36,9 +37,13 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
   const pose = poseList[Math.max(0, step) % poseList.length];
   const sprite = spriteFor(script.sprites, script.assets, pose);
   const enter = Math.round(t * FPS);
-  const img = "img" in beat ? script.assets[beat.img] : "";
+  const img = "img" in beat && beat.img ? script.assets[beat.img] : "";
+  const imgs = beat.kind === "topic" ? (beat.imgs ?? []) : beat.kind === "versus" ? [...beat.imgs] : [];
+  const srcs = imgs.map((k) => script.assets[k]);
+  const ratios = imgs.map((k) => script.ratios[k]);
   const [from, to] = windows[j] ?? [0, time.shown];
-  const onChar = beat.kind === "narrator" || beat.kind === "cta" || beat.kind === "verdict" || beat.kind === "walkout";
+  // the narrator carries the self-test: the topic card without a face and every check stand on him (75-80 % on screen, like @glowupmenclub's E reels)
+  const onChar = beat.kind === "narrator" || beat.kind === "cta" || beat.kind === "verdict" || beat.kind === "walkout" || beat.kind === "check" || (beat.kind === "topic" && !imgs.length);
   const showNarrator = onChar;
   const side = beat.kind === "verdict" || beat.kind === "walkout";
   return (
@@ -50,14 +55,23 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
       {beat.kind === "verdict" ? <VerdictView b={beat} lane={lane} src={img} hangul={script.hangul} since={enter} chime={script.sfx} /> : null}
       {beat.kind === "walkout" ? <WalkoutView b={beat} lane={lane} src={img} since={enter} /> : null}
       {beat.kind === "cta" ? <CtaView b={beat} lane={lane} since={enter} /> : null}
+      {beat.kind === "topic" ? <TopicView b={beat} srcs={srcs} ratios={ratios} since={enter} /> : null}
+      {beat.kind === "check" ? <CheckView b={beat} src={img || undefined} ratio={beat.img ? script.ratios[beat.img] : undefined} since={enter} /> : null}
+      {beat.kind === "type" ? (
+        <>
+          <FeatureView script={script} beat={beat} bp={bp} t={t} step={step} since={since} img={img} />
+          <TypeHeader b={beat} since={enter} />
+        </>
+      ) : null}
+      {beat.kind === "versus" ? <VersusView b={beat} srcs={srcs as [string, string]} ratios={ratios as [number, number]} since={enter} /> : null}
       {showNarrator ? <Narrator src={sprite} mode={side ? "side" : "full"} since={since} enter={enter} /> : null}
-      <Caption chunk={parts[j] ?? ""} hot={beat.hot} t={t} from={from} to={to} onChar={onChar} bottom={beat.kind === "hook" || beat.kind === "pack" ? 210 : 430} gamecard={lens === "gamecard"} />
+      <Caption chunk={parts[j] ?? ""} hot={beat.hot} t={t} from={from} to={to} onChar={onChar} bottom={beat.kind === "hook" || beat.kind === "pack" || (beat.kind === "topic" && imgs.length) ? 210 : 430} gamecard={lens === "gamecard"} />
     </AbsoluteFill>
   );
 };
 
 /** Feature beat: the painted cutout at 85-95 % frame height with callouts anchored on image fractions; every cut punches the crop in a little. */
-const FeatureView: React.FC<{ script: Script; beat: Extract<Beat, { kind: "feature" }>; bp: BeatPlan; t: number; step: number; since: number; img: string }> = ({ script, beat, bp, t, step, since, img }) => {
+const FeatureView: React.FC<{ script: Script; beat: Extract<Beat, { kind: "feature" | "type" }>; bp: BeatPlan; t: number; step: number; since: number; img: string }> = ({ script, beat, bp, t, step, since, img }) => {
   const key = beat.img;
   const ratio = script.ratios[key];
   const punch = interpolate(since, [0, 8], [0.05, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
@@ -91,7 +105,8 @@ export const ReelView: React.FC<{ script: Script; audio?: boolean }> = ({ script
     const out: { at: number; src: string; vol: number }[] = [];
     script.beats.forEach((b, i) => {
       const bp = pl.beats[i];
-      if (b.kind === "feature") b.callouts.forEach((c, k) => out.push({ at: bp.time.off + (bp.windows[popChunk(bp, k, c.chunk)]?.[0] ?? 0) + 4 / FPS, src: "sfx/click.wav", vol: 0.5 }));
+      if (b.kind === "check" || b.kind === "versus") out.push({ at: bp.time.off + 4 / FPS, src: "sfx/click.wav", vol: 0.5 });
+      if (b.kind === "feature" || b.kind === "type") b.callouts.forEach((c, k) => out.push({ at: bp.time.off + (bp.windows[popChunk(bp, k, c.chunk)]?.[0] ?? 0) + 4 / FPS, src: "sfx/click.wav", vol: 0.5 }));
       if (b.kind === "verdict" || b.kind === "walkout") out.push({ at: bp.time.off + 0.3, src: "sfx/chime.wav", vol: 0.6 });
     });
     return out;

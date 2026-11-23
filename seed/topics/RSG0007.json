@@ -1,0 +1,178 @@
+{
+ "id": "RSG0007",
+ "template": "C",
+ "subject": "",
+ "gender": "M",
+ "ep": 7,
+ "slots": {
+  "thing": "cheek type"
+ },
+ "demo": "Austin Butler",
+ "hook_card": {
+  "head": [
+   "6 CHEEK",
+   "*TYPES*"
+  ],
+  "sub": "which one is yours?",
+  "hot": [
+   "cheek",
+   "six",
+   "types."
+  ]
+ },
+ "features": [
+  {
+   "region": "cheekbones",
+   "label": "Hollow cheeks",
+   "tag": "shadow here",
+   "vo": "One, hollow cheeks. Less volume under the cheekbone, so the face looks sharper.",
+   "hot": [
+    "hollow",
+    "sharper."
+   ],
+   "at": [
+    0.66,
+    0.52
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "pos": [
+    580,
+    1120
+   ],
+   "w": 460
+  },
+  {
+   "region": "cheekbones",
+   "label": "Full cheeks",
+   "tag": "more volume",
+   "vo": "Two, full cheeks. More volume here gives the face a softer, rounder look.",
+   "hot": [
+    "full",
+    "softer,"
+   ],
+   "at": [
+    0.63,
+    0.5
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "pos": [
+    580,
+    1120
+   ],
+   "w": 460
+  },
+  {
+   "region": "cheekbones",
+   "label": "High cheekbones",
+   "tag": "close to the eyes",
+   "vo": "Three, high cheekbones. They sit close to the eyes and lift the whole face.",
+   "hot": [
+    "high",
+    "lift"
+   ],
+   "at": [
+    0.665,
+    0.45
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "pos": [
+    580,
+    1120
+   ],
+   "w": 460
+  },
+  {
+   "region": "cheekbones",
+   "label": "Low cheekbones",
+   "tag": "nearer the mouth",
+   "vo": "Four, low cheekbones. They sit nearer the mouth, which reads softer and calmer.",
+   "hot": [
+    "low",
+    "calmer."
+   ],
+   "at": [
+    0.65,
+    0.535
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "pos": [
+    580,
+    1120
+   ],
+   "w": 460
+  },
+  {
+   "region": "cheekbones",
+   "label": "Flat cheekbones",
+   "tag": "little projection",
+   "vo": "Five, flat cheekbones. They barely stick out, so the face looks smooth and even.",
+   "hot": [
+    "flat",
+    "smooth"
+   ],
+   "at": [
+    0.69,
+    0.48
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "pos": [
+    580,
+    1120
+   ],
+   "w": 460
+  },
+  {
+   "region": "cheekbones",
+   "label": "Wide cheekbones",
+   "tag": "widest point",
+   "vo": "Six, wide cheekbones. They are the widest part of the face and frame it.",
+   "hot": [
+    "wide",
+    "widest"
+   ],
+   "at": [
+    0.715,
+    0.455
+   ],
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "pos": [
+    580,
+    1120
+   ],
+   "w": 460
+  }
+ ],
+ "caption": "Hollow, full, high, low, flat or wide. Find yours in the mirror.",
+ "tags": [
+  "#cheekbones",
+  "#facetypes",
+  "#selftest",
+  "#faceshape",
+  "#facecard"
+ ],
+ "notes": "SLA-1653: first C reel. Paul Mescal has no Commons photo sourced yet, so the demo face is the existing Austin Butler cutout ($0 restyle)."
+}

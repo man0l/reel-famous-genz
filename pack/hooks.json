@@ -52,5 +52,17 @@
     "types": "Let's go through them one by one.",
     "compare": "Let's put them side by side.",
     "selftest": "Here is how you check."
+  },
+  "bridge_lines": {
+    "selftest": ["here is how", "you *check.*"],
+    "types": ["let's go through", "them *one by one.*"],
+    "compare": ["let's put them", "*side by side.*"]
+  },
+  "cta": {
+    "$comment": "Comment prompt per kind (decision 6: a comment prompt, never an app or a link). pills \"#\" = one pill per numbered step (1, 2, 3...).",
+    "celebrity": {"vo": "Comment who I should break down next.", "head": ["COMMENT", "WHO'S *NEXT*"]},
+    "selftest": {"vo": "Comment which one you passed.", "head": ["COMMENT WHICH", "YOU *PASSED*"], "pills": "#"},
+    "types": {"vo": "Comment your type.", "head": ["COMMENT", "YOUR *TYPE*"], "pills": "#"},
+    "compare": {"vo": "Comment A or B.", "head": ["COMMENT", "*A* OR *B*"], "pills": ["A", "B"]}
   }
 }

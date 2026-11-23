@@ -40,13 +40,9 @@ def cmd_photo(a):
 
 def cmd_restyle(a):
     t = L.topic(a.id)
-    usd = L.restyle(t)
-    for f in t.get("features") or []:
-        if f.get("subject") and f["subject"] != t["subject"]:
-            sub = dict(t, subject=f["subject"], photo=(L.subjects().get(L.slug(f["subject"])) or {}))
-            usd += L.restyle(sub)
+    usd = L.restyle_all(t)
     L.set_status(a.id, "restyled")
-    log("%s: cutout %s ($%.3f)" % (a.id, p("stills", L.cut_rel(t["subject"])), usd))
+    log("%s: cutouts %s ($%.3f)" % (a.id, ", ".join(p("stills", L.cut_rel(s)) for s in L.faces_of(t)), usd))
 
 
 def cmd_copy(a):
@@ -70,7 +66,7 @@ def cmd_script(a):
     os.makedirs(wd, exist_ok=True)
     json.dump(s, open(os.path.join(wd, "script.json"), "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     if not any(h["id"] == a.id for h in L.jsonl("hooks.jsonl")):
-        L.append("hooks.jsonl", {"t": L.now(), "id": a.id, "template": t["template"], "subject": t["subject"], "hook": s["beats"][0]["vo"]})
+        L.append("hooks.jsonl", {"t": L.now(), "id": a.id, "template": t["template"], "subject": t.get("subject", ""), "hook": s["beats"][0]["vo"]})
     L.set_status(a.id, "scripted", hook=s["beats"][0]["vo"])
     log("%s: script ok (%d beats): %s" % (a.id, len(s["beats"]), s["beats"][0]["vo"]))
 
@@ -110,7 +106,7 @@ def cmd_render(a):
 
 def cmd_make(a):
     t = L.topic(a.id)
-    if not os.path.exists(p("stills", L.cut_rel(t["subject"]))):
+    if not all(os.path.exists(p("stills", L.cut_rel(s))) for s in L.faces_of(t)):
         cmd_restyle(a)
     cmd_script(a)
     a.force = False
@@ -125,10 +121,11 @@ def cmd_approve(a):
 
 def cmd_posted(a):
     t = L.topic(a.id)
-    L.append("posted.jsonl", {"t": L.now(), "id": a.id, "subject": t["subject"], "template": t["template"], "platform": a.platform, "url": a.url, "stats": {}})
-    subs = L.subjects()
-    subs.setdefault(L.slug(t["subject"]), {"name": t["subject"]}).setdefault("posted", []).append({"id": a.id, "t": L.now(), "url": a.url})
-    L.save_subjects(subs)
+    L.append("posted.jsonl", {"t": L.now(), "id": a.id, "subject": t.get("subject", ""), "template": t["template"], "platform": a.platform, "url": a.url, "stats": {}})
+    if t.get("subject"):  # self-diagnosis reels have no subject (their demo faces don't cool down)
+        subs = L.subjects()
+        subs.setdefault(L.slug(t["subject"]), {"name": t["subject"]}).setdefault("posted", []).append({"id": a.id, "t": L.now(), "url": a.url})
+        L.save_subjects(subs)
     L.set_status(a.id, "posted")
     log("%s logged as posted on %s" % (a.id, a.platform))
 
@@ -200,7 +197,7 @@ def cmd_plan(a):
 
 def cmd_scheduled(a):
     t = L.topic(a.id)
-    rec = {"id": a.id, "subject": t["subject"], "publishAt": a.at, "groupId": a.group, "platforms": a.platforms.split(","), "media": a.media, "cover": a.cover, "t": L.now()}
+    rec = {"id": a.id, "subject": t.get("subject", ""), "publishAt": a.at, "groupId": a.group, "platforms": a.platforms.split(","), "media": a.media, "cover": a.cover, "t": L.now()}
     L.append("scheduled.jsonl", rec)
     if [r for r in L.topics() if r["id"] == a.id and r["status"] in ("qa_ok", "approved", "rendered")]:
         L.set_status(a.id, "scheduled")

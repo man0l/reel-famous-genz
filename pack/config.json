@@ -32,7 +32,9 @@
   },
   "features": {
     "min": 4,
-    "max": 6
+    "max": 6,
+    "$by_kind": "body beats per hook kind: celebrity features, selftest checks (their E reels: 3), types (their C reels: 6), compare rounds",
+    "by_kind": {"celebrity": [4, 6], "selftest": [3, 4], "types": [4, 6], "compare": [2, 4]}
   },
   "card": {
     "stats": [
@@ -294,9 +296,9 @@
       "qa_ok"
     ],
     "blocked_templates": {
-      "C": "needs the self-diagnosis layouts (SLA-1653)",
-      "D": "needs the self-diagnosis layouts (SLA-1653)",
-      "E": "needs the self-diagnosis layouts (SLA-1653)"
+      "C": "layouts built (SLA-1653); waits for the board's verdict on RSG0007 on SLA-1643",
+      "D": "layout built (SLA-1653); no D reel rendered yet, waits for the board's verdict on RSG0007 and RSG0010",
+      "E": "layouts built (SLA-1653); waits for the board's verdict on RSG0010 on SLA-1643"
     },
     "tags": [
       "#actor",

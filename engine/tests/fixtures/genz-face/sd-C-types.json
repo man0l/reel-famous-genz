@@ -1,0 +1,272 @@
+{
+ "format": "genz-face",
+ "reel_id": "RSG0007",
+ "template": "C",
+ "footer": "AI-edited images",
+ "lane": "B",
+ "lens": "kpop",
+ "episode_type": "self_diagnosis",
+ "tag": {
+  "en": "FACE FILE · EP.07"
+ },
+ "cite": "Portrait painted from a photo by Gabriel Hutchinson, CC BY-SA 4.0, Wikimedia Commons · AI-edited images",
+ "hangul": false,
+ "assets": {
+  "idol_point": "sprites/idol_film_point.png",
+  "idol_think": "sprites/idol_film_think.png",
+  "idol_cross": "sprites/idol_film_cross.png",
+  "idol_present": "sprites/idol_film_present.png",
+  "cut_austin_butler": "faces/austin_butler/cut.png"
+ },
+ "sprites": {
+  "point": "idol_point",
+  "think": "idol_think",
+  "cross": "idol_cross",
+  "present": "idol_present"
+ },
+ "ratios": {
+  "cut_austin_butler": 1.3393
+ },
+ "beats": [
+  {
+   "kind": "topic",
+   "head": [
+    "6 CHEEK",
+    "*TYPES*"
+   ],
+   "vo": "What cheek type do you actually have? Here are six main types.",
+   "sub": "which one is yours?",
+   "imgs": [
+    "cut_austin_butler"
+   ],
+   "hot": [
+    "cheek",
+    "six",
+    "types."
+   ]
+  },
+  {
+   "kind": "narrator",
+   "lines": [
+    "let's go through",
+    "them *one by one.*"
+   ],
+   "vo": "Let's go through them one by one.",
+   "hot": [
+    "one"
+   ]
+  },
+  {
+   "kind": "type",
+   "n": 1,
+   "title": "HOLLOW CHEEKS",
+   "img": "cut_austin_butler",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.655,
+      0.56
+     ],
+     "label": "SHADOW HERE",
+     "pos": [
+      580,
+      1120
+     ],
+     "w": 460
+    }
+   ],
+   "vo": "One, hollow cheeks. Less volume under the cheekbone, so the face looks sharper.",
+   "hot": [
+    "hollow",
+    "sharper."
+   ]
+  },
+  {
+   "kind": "type",
+   "n": 2,
+   "title": "FULL CHEEKS",
+   "img": "cut_austin_butler",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.625,
+      0.52
+     ],
+     "label": "MORE VOLUME",
+     "pos": [
+      580,
+      1120
+     ],
+     "w": 460
+    }
+   ],
+   "vo": "Two, full cheeks. More volume here gives the face a softer, rounder look.",
+   "hot": [
+    "full",
+    "softer,"
+   ]
+  },
+  {
+   "kind": "type",
+   "n": 3,
+   "title": "HIGH CHEEKBONES",
+   "img": "cut_austin_butler",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.675,
+      0.465
+     ],
+     "label": "CLOSE TO THE EYES",
+     "pos": [
+      580,
+      1120
+     ],
+     "w": 460
+    }
+   ],
+   "vo": "Three, high cheekbones. They sit close to the eyes and lift the whole face.",
+   "hot": [
+    "high",
+    "lift"
+   ]
+  },
+  {
+   "kind": "type",
+   "n": 4,
+   "title": "LOW CHEEKBONES",
+   "img": "cut_austin_butler",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.64,
+      0.565
+     ],
+     "label": "NEARER THE MOUTH",
+     "pos": [
+      580,
+      1120
+     ],
+     "w": 460
+    }
+   ],
+   "vo": "Four, low cheekbones. They sit nearer the mouth, which reads softer and calmer.",
+   "hot": [
+    "low",
+    "calmer."
+   ]
+  },
+  {
+   "kind": "type",
+   "n": 5,
+   "title": "FLAT CHEEKBONES",
+   "img": "cut_austin_butler",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.7,
+      0.5
+     ],
+     "label": "LITTLE PROJECTION",
+     "pos": [
+      580,
+      1120
+     ],
+     "w": 460
+    }
+   ],
+   "vo": "Five, flat cheekbones. They barely stick out, so the face looks smooth and even.",
+   "hot": [
+    "flat",
+    "smooth"
+   ]
+  },
+  {
+   "kind": "type",
+   "n": 6,
+   "title": "WIDE CHEEKBONES",
+   "img": "cut_austin_butler",
+   "crop": {
+    "w": 1500,
+    "x": -210,
+    "y": -60
+   },
+   "callouts": [
+    {
+     "at": [
+      0.76,
+      0.47
+     ],
+     "label": "WIDEST POINT",
+     "pos": [
+      580,
+      1120
+     ],
+     "w": 460
+    }
+   ],
+   "vo": "Six, wide cheekbones. They are the widest part of the face and frame it.",
+   "hot": [
+    "wide",
+    "widest"
+   ]
+  },
+  {
+   "kind": "cta",
+   "head": [
+    "COMMENT",
+    "YOUR *TYPE*"
+   ],
+   "pills": [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6"
+   ],
+   "vo": "Comment your type.",
+   "hot": [
+    "comment",
+    "type"
+   ]
+  }
+ ],
+ "sfx": true,
+ "durations": [
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0,
+  4.0
+ ]
+}

@@ -1,0 +1,67 @@
+{
+ "id": "RSG0010",
+ "template": "E",
+ "subject": "",
+ "gender": "M",
+ "ep": 10,
+ "slots": {
+  "test": "you are attractive to girls"
+ },
+ "hook_card": {
+  "head": [
+   "ATTRACTIVE",
+   "TO *GIRLS?*"
+  ],
+  "sub": "3 things that tell you",
+  "hot": [
+   "easy",
+   "attractive"
+  ]
+ },
+ "features": [
+  {
+   "label": "Facial thirds",
+   "chip": "three equal parts",
+   "subject": "Austin Butler",
+   "marks": [
+    0.283,
+    0.39,
+    0.545,
+    0.72
+   ],
+   "vo": "First, your facial thirds. Hairline to brows, brows to nose, nose to chin. When the three are close to equal, the face reads balanced.",
+   "hot": [
+    "thirds",
+    "balanced"
+   ]
+  },
+  {
+   "label": "Hair for your face shape",
+   "chip": "volume where your face needs it",
+   "subject": "Timothée Chalamet",
+   "vo": "Second, a haircut that fits your face shape. A long face wants volume at the sides. A round face wants height on top.",
+   "hot": [
+    "haircut",
+    "shape"
+   ]
+  },
+  {
+   "label": "Posture",
+   "chip": "chin level, shoulders back",
+   "vo": "Third, posture. Chin level, shoulders back, neck straight. It shows all the height you already have.",
+   "hot": [
+    "posture",
+    "height"
+   ]
+  }
+ ],
+ "caption": "Facial thirds, a haircut for your face shape, and posture. Three checks you can do in the mirror.",
+ "tags": [
+  "#selftest",
+  "#facialthirds",
+  "#hairstyle",
+  "#posture",
+  "#facecard"
+ ],
+ "notes": "SLA-1653: first E reel. Their 3 points minus height (board). Demo faces reuse existing cutouts (Butler, Chalamet), $0 restyle."
+}
