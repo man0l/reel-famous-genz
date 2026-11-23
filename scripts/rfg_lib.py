@@ -741,7 +741,7 @@ def render_vps(tid, job):
     lim = CFG["render"]["vps_limits"]
     out = p("out", tid + ".mp4")
     env = dict(os.environ, RF_REMOTION_HOME=CFG["render"]["vps_runtime"].format(company=COMPANY), MAX_RSS_MB=str(lim["max_rss_mb"]),
-               MIN_AVAIL_MB=str(lim["min_avail_mb"]), MAX_SECS=str(lim["max_secs"]), RF_START_AVAIL_MB=str(lim["start_avail_mb"]))
+               MIN_AVAIL_MB=str(lim["min_avail_mb"]), MAX_SECS=os.environ.get("MAX_SECS", str(lim["max_secs"])), RF_START_AVAIL_MB=str(lim["start_avail_mb"]))
     sh = os.path.join(engine(), "engine", "render.sh")
     rc = subprocess.run(["bash", sh, job, out], env=env).returncode
     if rc == 75:

@@ -269,7 +269,7 @@
       "max_rss_mb": 2800,
       "min_avail_mb": 600,
       "start_avail_mb": 1024,
-      "max_secs": 1500
+      "max_secs": 2700
     }
   },
   "rotation": {
