@@ -264,13 +264,10 @@
     "no_score_out_of_10": true
   },
   "render": {
-    "vps_runtime": "/paperclip/instances/default/data/reel-famous-genz/{company}/remotion-runtime",
-    "vps_limits": {
-      "max_rss_mb": 2800,
-      "min_avail_mb": 600,
-      "start_avail_mb": 1024,
-      "max_secs": 2700
-    }
+    "target": "cloudflare",
+    "worker_url": "https://reel-remotion.manol-trendafilov.workers.dev",
+    "part_bytes": 45000000,
+    "ffmpeg_runtime": "/paperclip/instances/default/data/reel-famous-genz/{company}/remotion-runtime"
   },
   "rotation": {
     "subject_cooldown_days": 30

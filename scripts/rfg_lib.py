@@ -737,17 +737,119 @@ def build_job(tid):
     return job
 
 
-def render_vps(tid, job):
-    lim = CFG["render"]["vps_limits"]
+class Pending(Exception):
+    """A Cloudflare render is queued or running; the job id is kept in state/cf-jobs.json and the next `render` call collects it."""
+
+
+CF = CFG["render"]
+
+
+def cf_url():
+    return (os.environ.get("REEL_REMOTION_URL") or CF["worker_url"]).rstrip("/")
+
+
+def cf_req(method, path, data=None, ctype=None, timeout=60):
+    key = os.environ.get("REEL_REMOTION_KEY")
+    if not key:
+        raise Fatal("REEL_REMOTION_KEY is not set (bearer for the reel-remotion Worker)")
+    h = {"user-agent": WIKI_UA, "authorization": "Bearer " + key}
+    if ctype:
+        h["content-type"] = ctype
+    try:
+        r = urllib.request.urlopen(urllib.request.Request(cf_url() + path, data=data, method=method, headers=h), timeout=timeout)
+        return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()[:500]
+
+
+def cf_json(method, path, body=None, timeout=60):
+    st, raw = cf_req(method, path, json.dumps(body).encode() if body is not None else None, "application/json" if body is not None else None, timeout)
+    try:
+        return st, json.loads(raw)
+    except Exception:
+        return st, {"error": raw[:300].decode(errors="replace")}
+
+
+def cf_jobs():
+    try:
+        return json.load(open(p("state", "cf-jobs.json")))
+    except Exception:
+        return {}
+
+
+def cf_save(j):
+    os.makedirs(p("state"), exist_ok=True)
+    json.dump(j, open(p("state", "cf-jobs.json") + ".tmp", "w"), indent=1)
+    os.replace(p("state", "cf-jobs.json") + ".tmp", p("state", "cf-jobs.json"))
+
+
+def cf_submit(tid, job):
+    """Zip out/<id>/job, upload it in parts to the reel-remotion Worker and queue it. Returns the remote job id."""
+    zp = p("out", tid, "job.zip")
+    with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as z:
+        for root, _, files in os.walk(job):
+            for f in sorted(files):
+                z.write(os.path.join(root, f), os.path.relpath(os.path.join(root, f), job))
+    size, part = os.path.getsize(zp), int(CF["part_bytes"])
+    n = max(1, -(-size // part))
+    st, j = cf_json("POST", "/jobs", {"reel_id": tid, "composition": CFG["composition"], "parts": n, "bytes": size})
+    if st == 429:
+        raise Fatal("reel-remotion daily cap reached (%s of %s today); render again after 00:00 UTC" % (j.get("used", "?"), j.get("cap", "?")))
+    if st != 201:
+        raise Fatal("reel-remotion refused the job: HTTP %s %s" % (st, str(j)[:200]))
+    with open(zp, "rb") as f:
+        for i in range(n):
+            data = f.read(part)
+            for attempt in range(5):
+                st, raw = cf_req("PUT", "/jobs/%s/parts/%d" % (j["id"], i), data, "application/octet-stream", 300)
+                if st == 200:
+                    break
+                if attempt == 4:
+                    raise Fatal("upload of part %d/%d failed: HTTP %s %s" % (i + 1, n, st, raw[:120]))
+                time.sleep(3 * 2 ** attempt)
+    st, r = cf_json("POST", "/jobs/%s/start" % j["id"])
+    if st != 202:
+        raise Fatal("could not queue the job: HTTP %s %s" % (st, str(r)[:200]))
+    os.remove(zp)
+    log("%s: submitted to reel-remotion as job %s (%.1f MB, %d part(s))" % (tid, j["id"], size / 1e6, n))
+    return j["id"]
+
+
+def render_cloudflare(tid, wait=0):
+    """Render out/<id>.mp4 on the reel-remotion Worker (Cloudflare Container; the genz-face composition is baked into its image).
+    Submits the job unless one is already recorded, then polls for up to `wait` seconds. Raises Pending while it is still queued or
+    running (the job id stays in state/cf-jobs.json, so the next call resumes), Fatal when the Worker fails it (the record is dropped,
+    so the next call submits again)."""
+    jobs = cf_jobs()
+    jid = jobs.get(tid)
+    if not jid:
+        jid = cf_submit(tid, build_job(tid))
+        jobs[tid] = jid
+        cf_save(jobs)
+    deadline = time.time() + wait
+    while True:
+        st, j = cf_json("GET", "/status/" + jid, timeout=30)
+        state = j.get("state") if st == 200 else ("gone" if st == 404 else "unreachable")
+        if state == "done":
+            break
+        if state in ("failed", "gone"):
+            jobs.pop(tid, None)
+            cf_save(jobs)
+            raise Fatal("reel-remotion job %s %s: %s (render again to resubmit)" % (jid, state, str(j.get("error", ""))[:300]))
+        if time.time() >= deadline:
+            prog = "%s %d%%" % (j.get("phase"), int(float(j.get("progress") or 0) * 100)) if j.get("phase") else ""
+            queue = "queue position %s" % j["queue_position"] if j.get("queue_position") else ""
+            raise Pending("%s: job %s is %s %s; run `rfg.sh render %s` again to collect it" % (tid, jid, state, prog or queue, tid))
+        time.sleep(15)
+    st, data = cf_req("GET", "/out/%s.mp4" % jid, timeout=300)
+    if st != 200 or len(data) < 20000 or data[4:8] != b"ftyp":
+        raise Pending("%s: job %s is done but the MP4 download failed (HTTP %s, %d bytes); run render again" % (tid, jid, st, len(data)))
     out = p("out", tid + ".mp4")
-    env = dict(os.environ, RF_REMOTION_HOME=CFG["render"]["vps_runtime"].format(company=COMPANY), MAX_RSS_MB=str(lim["max_rss_mb"]),
-               MIN_AVAIL_MB=str(lim["min_avail_mb"]), MAX_SECS=os.environ.get("MAX_SECS", str(lim["max_secs"])), RF_START_AVAIL_MB=str(lim["start_avail_mb"]))
-    sh = os.path.join(engine(), "engine", "render.sh")
-    rc = subprocess.run(["bash", sh, job, out], env=env).returncode
-    if rc == 75:
-        raise Fatal("another render is running on this box or memory is low; try again later")
-    if rc != 0 or not os.path.exists(out):
-        raise Fatal("VPS render exit %s (see %s/watchdog.summary)" % (rc, job))
+    with open(out + ".part", "wb") as fh:
+        fh.write(data)
+    os.replace(out + ".part", out)
+    jobs.pop(tid, None)
+    cf_save(jobs)
     return out
 
 
@@ -774,12 +876,12 @@ SCHED = CFG["schedule"]
 
 
 def ff(tool):
-    """ffmpeg/ffprobe: the system one, else the binary that ships with the skill's Remotion runtime."""
+    """ffmpeg/ffprobe for QA and covers: the system one, else the binary in the skill's Remotion runtime (`render.ffmpeg_runtime`)."""
     if shutil.which(tool):
         return [tool], dict(os.environ)
-    d = os.path.join(CFG["render"]["vps_runtime"].format(company=COMPANY), "app", "node_modules", "@remotion", "compositor-linux-x64-gnu")
+    d = os.path.join(CFG["render"]["ffmpeg_runtime"].format(company=COMPANY), "app", "node_modules", "@remotion", "compositor-linux-x64-gnu")
     if not os.path.exists(os.path.join(d, tool)):
-        raise Fatal("no %s on PATH or in %s (render once to build the runtime)" % (tool, d))
+        raise Fatal("no %s on PATH or in %s (build it once with `cd engine && npm ci` into that runtime)" % (tool, d))
     return [os.path.join(d, tool)], dict(os.environ, LD_LIBRARY_PATH=d)
 
 

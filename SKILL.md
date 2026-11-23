@@ -1,6 +1,6 @@
 ---
 name: reel-famous-genz
-description: Make one-lane face-breakdown reels of Gen Z actors and creators in the @glowupmenclub format (their exact spoken hooks, "let's break down what his face actually has", 4-6 feature callouts on a painted Commons portrait, game-card payoff, comment CTA), packaged with the faceless K-pop narrator and pink glow background. Own memory (topic bank, subjects, hook rotation, posted log, learnings, board decisions) in its own data home; renders with its own Remotion engine (composition `genz-face`, nothing in reel-factory). Use for this account's daily routine (make, QA, schedule one day ahead on the four jenny accounts), topics, scripts, renders, post logging and feedback.
+description: Make one-lane face-breakdown reels of Gen Z actors and creators in the @glowupmenclub format (their exact spoken hooks, "let's break down what his face actually has", 4-6 feature callouts on a painted Commons portrait, game-card payoff, comment CTA), packaged with the faceless K-pop narrator and pink glow background. Own memory (topic bank, subjects, hook rotation, posted log, learnings, board decisions) in its own data home; renders its own Remotion composition `genz-face` on Cloudflare only (the `reel-remotion` Worker; never on the agent box). Use for this account's daily routine (make, QA, schedule one day ahead on the four jenny accounts), topics, scripts, renders, post logging and feedback.
 ---
 
 # reel-famous-genz
@@ -44,8 +44,8 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 | `script <id>` | build `work/<id>/script.json` and lint it against the board rules; logs the hook in hooks.jsonl |
 | `lint <id>` | lint only |
 | `tts <id> [--force]` | ElevenLabs `charlie` at 0.95 via OpenRouter, one clip per beat: about $0.01 |
-| `render <id>` | build the job and render it with the skill's own engine (`engine/`) |
-| `make <id>` | restyle (if needed) → script → tts → render |
+| `render <id> [--wait S]` | build the job and render it on Cloudflare (`reel-remotion` Worker). Submits, or checks the job already submitted, then returns: exit 0 = `out/<id>.mp4` written (`rendered`), exit 75 = still queued/rendering (run it again on the next wake), exit 2 = failed (run it again to resubmit) |
+| `make <id>` | restyle (if needed) → script → tts → render (submit; exit 75 until Cloudflare is done) |
 | `approve <id>` | the board approved the MP4 |
 | `posted <id> --platform ig\|tt\|yt [--url U]` | log a post (posted.jsonl, subjects.json) |
 | `stats <id> --views N` | add view counts to the post |
@@ -67,13 +67,14 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 3. Features: `region` is one of hair, brows, eyes, eye_colour, nose, cheekbones, lips, jaw, chin, skin. The default anchors fit a cutout whose face sits like Keoghan's. **After `restyle`, look at the cutout** and set `at` (image fractions) and `crop.y` per feature when the face sits higher or lower. Chalamet (RSG0002) is the worked example.
 4. Before a full render, render one still per beat to check the layout: copy `out/<id>/job`, set `still_composition: "genz-face"` and `still_frame: N` in its job.json, and run `engine/render.sh <job> <out.jpg>`. It takes about 15 s a frame.
 
-## Rendering (the skill's own engine)
-- `engine/` is a self-contained Remotion renderer with one composition, `genz-face` (`engine/compositions/genz-face/`), and nothing else. It holds no qoves or facemetric code (those stay in reel-factory), and it needs nothing from reel-factory.
-- `render` runs `engine/render.sh` under its watchdog on this box. It takes about 20 min per 35 s reel.
-  - The runtime (node_modules, headless Chrome, bundle cache, render lock) is the skill's own: `render.vps_runtime` = `$RFG_HOME/remotion-runtime/`, built on the first render (about 1.5 GB).
-  - A render won't start below 1 GB MemAvailable, so it backs off if another renderer on the box is using memory.
-  - **Start it detached** (`setsid nohup ... &` with a log) and set `TMPDIR` inside `$RFG_HOME`. A render that is a child of the run dies when the run ends.
-- There is no Cloudflare target.
+## Rendering (Cloudflare only, SLA-1668)
+- Reels render **only on Cloudflare**: `render` zips `out/<id>/job` and submits it to the `reel-remotion` Worker (`render.worker_url`, bearer `REEL_REMOTION_KEY`), which renders `genz-face` in a Container and keeps the MP4 in R2. Nothing renders on the agent box, so there is no detached process, no pid, no memory guard and no wall limit to manage.
+  - The job id is kept in `state/cf-jobs.json`. `rfg.sh render <id>` is quick and idempotent: the first call submits, later calls check and download `out/<id>.mp4` when done. `--wait S` polls up to S seconds (for a one-off; the routine uses the default 0 and comes back on its monitor).
+  - Several reels can be submitted at once; the Worker queues them (FIFO, one Container at a time). A Cloudflare render takes about 5-10 min plus queue time.
+  - A failed or expired job is dropped from `state/cf-jobs.json` (exit 2), so the next `render` submits it again. The Worker's daily cap (HTTP 429) is a stop until 00:00 UTC; report it, don't work around it.
+- `engine/` holds the composition source (`engine/compositions/genz-face/`). The Cloudflare image renders a **copy** of it in reel-factory (`scripts/renderers/remotion/compositions/genz-face/`, registered in its `compositions/index.ts`; added in reel-factory PR #104). **A change to the composition reaches renders only after it is copied there, merged to reel-factory `main` and the `deploy-reel-remotion` workflow has run.**
+- `engine/render.sh` stays for one-frame layout stills only (see "Writing a topic", step 4). Never use it, or anything else on the box, for a reel MP4.
+- QA and covers use ffmpeg/ffprobe: the system ones, else the binaries in `render.ffmpeg_runtime` (`$RFG_HOME/remotion-runtime/`, already built).
 - `RFG_ENGINE` points the skill at another checkout of itself (tests only).
 - Needs `OPEN_ROUTER_API_KEY` for restyle, copy and tts. The chroma key needs node and `sharp`; `rfg.sh` finds `/app/node_modules/.pnpm/sharp@*/node_modules` or uses `$RF_SHARP`.
 

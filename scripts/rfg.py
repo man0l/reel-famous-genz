@@ -98,8 +98,11 @@ def cmd_tts(a):
 
 
 def cmd_render(a):
-    job = L.build_job(a.id)
-    out = L.render_vps(a.id, job)
+    try:
+        out = L.render_cloudflare(a.id, a.wait)
+    except L.Pending as e:
+        log(str(e))
+        return 75
     L.set_status(a.id, "rendered")
     log("%s: wrote %s (%.1f MB)" % (a.id, out, os.path.getsize(out) / 1e6))
 
@@ -111,7 +114,7 @@ def cmd_make(a):
     cmd_script(a)
     a.force = False
     cmd_tts(a)
-    cmd_render(a)
+    return cmd_render(a)
 
 
 def cmd_approve(a):
@@ -225,6 +228,7 @@ def main(argv=None):
         q = sp.add_parser(name); q.add_argument("id"); q.add_argument("--force", action="store_true")
     for name in ("render", "make"):
         q = sp.add_parser(name); q.add_argument("id")
+        q.add_argument("--wait", type=int, default=0, help="seconds to wait for the Cloudflare render (default 0: submit or check, then return)")
     q = sp.add_parser("posted"); q.add_argument("id"); q.add_argument("--platform", required=True); q.add_argument("--url", default="")
     q = sp.add_parser("stats"); q.add_argument("id"); q.add_argument("--views", type=int)
     q = sp.add_parser("learn"); q.add_argument("text")
