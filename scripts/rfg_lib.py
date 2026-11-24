@@ -171,6 +171,11 @@ def hook_lines(t):
     return [fill(l, s) for l in tpl["lines"]]
 
 
+def payoff(t):
+    """SLA-1685: "card" = the game card, then the Axend CTA card; "axend" = the Axend card alone carries the reel's own score (board variant, 24 Nov)."""
+    return t.get("payoff") or CFG["axend"].get("payoff") or "card"
+
+
 def bridge_line(t):
     kind = HOOKS["templates"][t["template"]]["kind"]
     return fill(HOOKS["bridge"][kind], slots_of(t))
@@ -220,9 +225,12 @@ def lint_script(script, t):
     if not lo <= nf <= hi:
         out.append("%s: %d %s beats (want %d-%d)" % (BODY[kind], nf, BODY[kind], lo, hi))
     kinds = [b["kind"] for b in beats]
-    if kind == "celebrity" and "walkout" not in kinds:
+    if kind == "celebrity" and payoff(t) == "axend":  # SLA-1685 variant: the Axend card with the reel's own score is the payoff
+        if "walkout" in kinds or kinds[-1] != "axend" or "score" not in beats[-1]:
+            out.append("payoff: the Axend payoff ends on the Axend card with the score, no game card (got %s)" % kinds[-2:])
+    elif kind == "celebrity" and "walkout" not in kinds:
         out.append("payoff: a celebrity breakdown ends on the game card (walkout beat)")
-    if kind == "celebrity":  # SLA-1685 (board, 24 Nov): the game card hands over to the Axend CTA
+    elif kind == "celebrity":  # SLA-1685 (board, 24 Nov): the game card hands over to the Axend CTA
         if kinds[-2:] != ["walkout", "axend"]:
             out.append("cta: a celebrity reel ends on the game card, then the Axend card (got %s)" % kinds[-2:])
     elif kinds[-1] != "cta":
@@ -487,7 +495,10 @@ def build_script(t):
     if turn:
         beats.append({"kind": "narrator", "lines": turn["lines"], "vo": turn["vo"], "hot": hot_of(turn["vo"], turn.get("hot") or [])})
     card = t.get("card")
-    if kind == "celebrity" or (card and name):
+    ax_payoff = kind == "celebrity" and payoff(t) == "axend"
+    if kind == "celebrity" and not card:
+        raise Fatal("%s: a celebrity breakdown needs `card` (ovr, rarity, stats)" % t["id"])
+    if (kind == "celebrity" or (card and name)) and not ax_payoff:
         if not card:
             raise Fatal("%s: a celebrity breakdown needs `card` (ovr, rarity, stats)" % t["id"])
         stats = card["stats"]
@@ -503,9 +514,17 @@ def build_script(t):
             raise Fatal("missing Axend card stills/%s (copy %s)" % (ax["card"], ax["source"]))
         assets["axend_card"], ratios["axend_card"] = ax["card"], png_ratio(p("stills", ax["card"]), 1344 / 752)
         avo = t.get("axend_vo") or HOOKS["axend"]["vo"]
-        a = {"kind": "axend", "img": "cut", "card": "axend_card", "vo": avo, "hot": hot_of(avo, HOOKS["axend"]["hot"])}
+        hot = HOOKS["axend"]["hot"]
+        if ax_payoff:  # the game card's OVR on the Axend scale (87 -> 8.7), its rarity as the tag; the potential sits a little above it
+            sc = round(int(card["ovr"]) / 10, 1)
+            avo = t.get("axend_vo") or fill(HOOKS["axend"]["payoff_vo"], dict(pr, score="%.1f" % sc))
+            hot = ["%.1f." % sc] + HOOKS["axend"]["payoff_hot"]
+        a = {"kind": "axend", "img": "cut", "card": "axend_card", "vo": avo, "hot": hot_of(avo, hot)}
         if t.get("gender") == "W":
             a["label"] = "Eve"
+        if ax_payoff:
+            a["score"] = {"value": sc, "tag": card["rarity"]}
+            a["potential"] = {"value": min(9.9, round(sc + CFG["axend"]["potential_plus"], 1)), "tag": a.get("label", "Chad")}
         beats.append(a)
         return script_out(t, kind, name, ep, faces, assets, sprites, ratios, beats)
     dflt = HOOKS.get("cta", {}).get(kind) or {}
@@ -1079,7 +1098,7 @@ def caption(t):
         body = (", ".join(labels[:-1]) + " and " + labels[-1] if len(labels) > 1 else labels[0])
         body = body[0].upper() + body[1:] + "."
     card = t.get("card") or {}
-    if card.get("ovr"):
+    if card.get("ovr") and "score" not in s["beats"][-1]:  # the Axend payoff speaks the score itself
         body += " %s face card comes out at %d." % (pr["his"].capitalize(), card["ovr"])
     body += " " + s["beats"][-1]["vo"]  # the reel's own CTA: the Axend line (celebrity) or the comment prompt (per kind)
     if s["beats"][-1]["kind"] == "axend":

@@ -10,6 +10,8 @@ const Pt = z.tuple([Frac, Frac]);
 const Xy = z.tuple([z.number(), z.number()]);
 const Pair = z.tuple([Name, Name]);
 const Stat = z.tuple([Name, z.number().int().min(0).max(99)]);
+/** SLA-1685: one Axend score panel patched over the card ("8.7 · ICON"); `value` on the card's 0-10 scale, the bar fills to value / 10. */
+const AxendPanel = z.strictObject({ value: z.number().min(0).max(10), tag: z.string().min(1).max(10) });
 const Pose = z.enum(POSES);
 const Num = z.number().int().min(1).max(9);
 
@@ -59,8 +61,8 @@ export const BeatSchema = z.discriminatedUnion("kind", [
     stats: z.array(Stat).length(6),
     ...common,
   }),
-  /** SLA-1685 (board, 24 Nov): the Axend CTA after the game card, reel-factory's card PNG (`card`) with the reel's face in its circle; "Chad" is patched to `label`. */
-  z.strictObject({ kind: z.literal("axend"), img: Name, card: Name, label: z.string().optional(), ...common }),
+  /** SLA-1685 (board, 24 Nov): the Axend CTA after the game card (or, with `score`, instead of it: the payoff variant, the reel's own score counts up in the panels), reel-factory's card PNG (`card`) with the reel's face in its circle; "Chad" is patched to `label`. */
+  z.strictObject({ kind: z.literal("axend"), img: Name, card: Name, label: z.string().optional(), score: AxendPanel.optional(), potential: AxendPanel.optional(), ...common }),
   z.strictObject({ kind: z.literal("cta"), head: z.array(Name).min(1).max(3), pills: z.array(Name).min(2).max(MAX_PILLS), on: z.number().int().min(0).optional(), tease: z.string().optional(), ...common }),
   /** Self-diagnosis hook (C, D, E): a topic card ("6 CHEEK TYPES") instead of the name photocard. No image = the narrator stands under it; one = a demo face; two = A/B side by side. */
   z.strictObject({ kind: z.literal("topic"), head: z.array(Name).min(1).max(4), sub: z.string().optional(), imgs: z.array(Name).max(2).optional(), labels: z.array(Name).max(2).optional(), pills: z.array(Name).max(MAX_PILLS).optional(), ...common }),

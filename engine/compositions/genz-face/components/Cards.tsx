@@ -240,12 +240,42 @@ export const AxendView: React.FC<{ b: Of<"axend">; card: string; src: string; si
       <div style={{ position: "absolute", left: cx - d / 2, top: cy - d / 2, width: d, height: d, borderRadius: "50%", overflow: "hidden", background: "radial-gradient(circle at 50% 35%, #3a1830 0%, #12070f 75%)" }}>
         <Img src={assetSrc(src)} style={{ position: "absolute", left: "-12%", top: "-4%", width: "124%", transform: `scale(${AXEND.faceFrom + (1 - AXEND.faceFrom) * ease})`, transformOrigin: "50% 30%" }} />
       </div>
-      {b.label && b.label !== "Chad" ? (
+      {b.score || b.potential ? (
+        <div style={{ position: "absolute", left: 0, top: 0, width: AXEND.card.w, height: AXEND.card.h, transform: `scale(${k})`, transformOrigin: "0 0" }}>
+          {b.score ? <AxendPanel which="score" v={b.score} since={since} /> : null}
+          {b.potential ? <AxendPanel which="potential" v={b.potential} since={since} /> : null}
+        </div>
+      ) : null}
+      {b.label && b.label !== "Chad" && !b.potential ? (
         <div style={{ position: "absolute", left: 0, top: 0, width: AXEND.card.w, height: AXEND.card.h, transform: `scale(${k})`, transformOrigin: "0 0" }}>
           <div style={{ position: "absolute", left: L.cover.x, top: L.cover.y, width: L.cover.w, height: L.cover.h, background: L.color }} />
           <div style={{ position: "absolute", left: L.x, top: L.baseline - L.size, height: L.size, lineHeight: `${L.size}px`, fontFamily: 'Inter, "Helvetica Neue", Arial, sans-serif', fontWeight: L.weight, fontSize: L.size, color: "#fff", whiteSpace: "nowrap" }}>{b.label}</div>
         </div>
       ) : null}
     </div>
+  );
+};
+
+/** SLA-1685 payoff variant: one score panel of the Axend card redrawn with the reel's own score; the number counts up and the bar fills once the card is in. */
+const AxendPanel: React.FC<{ which: "score" | "potential"; v: { value: number; tag: string }; since: number }> = ({ which, v, since }) => {
+  const P = AXEND.panels[which];
+  const N = AXEND.number;
+  const T = AXEND.tag;
+  const q = interpolate(since, [AXEND.enterFrames, AXEND.enterFrames + AXEND.countFrames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const shown = v.value * (1 - (1 - q) ** 3);
+  const font = 'Inter, "Helvetica Neue", Arial, sans-serif';
+  return (
+    <>
+      <div style={{ position: "absolute", left: P.cover.x, top: P.cover.y, width: P.cover.w, height: P.cover.h, background: AXEND.panelBg, boxShadow: `0 0 8px 4px ${AXEND.panelBg}` }} />
+      <div style={{ position: "absolute", left: P.x, top: N.baseline - N.size * 0.86, display: "flex", alignItems: "baseline", gap: 22, fontFamily: font, color: "#fff", whiteSpace: "nowrap", lineHeight: 1 }}>
+        <span style={{ fontSize: N.size, fontWeight: N.weight, fontVariantNumeric: "tabular-nums" }}>{shown.toFixed(1)}</span>
+        <span style={{ width: 16, height: 16, borderRadius: "50%", background: P.dot, boxShadow: `0 0 10px ${P.glow}`, alignSelf: "center" }} />
+        <span style={{ fontSize: T.size, fontWeight: T.weight }}>{v.tag}</span>
+      </div>
+      <div style={{ position: "absolute", left: P.bar.x - 4, top: P.bar.y - 6, width: P.bar.w + 8, height: P.bar.h + 12, background: AXEND.panelBg, boxShadow: `0 0 10px 6px ${AXEND.panelBg}` }} />
+      <div style={{ position: "absolute", left: P.bar.x, top: P.bar.y, width: P.bar.w, height: P.bar.h, borderRadius: P.bar.h / 2, background: "#404040", overflow: "hidden" }}>
+        <div style={{ width: `${(shown / 10) * 100}%`, height: "100%", borderRadius: P.bar.h / 2, background: P.fill, boxShadow: `0 0 14px ${P.glow}` }} />
+      </div>
+    </>
   );
 };

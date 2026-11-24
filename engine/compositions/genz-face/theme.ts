@@ -102,6 +102,16 @@ export const AXEND = {
   card: { w: 752, h: 1344 },
   circle: [533, 747, 820],
   label: { cover: { x: 515, y: 955, w: 125, h: 55 }, color: "#131414", x: 523, baseline: 995, size: 38, weight: 500 },
+  /** SLA-1685 payoff variant: the two score panels (card pixels, measured on the PNG): the area covering "2.9 · Sub-3" / "7 · Chad", the number
+   * baseline and size, the bar track; the number counts up and the bar fills over `countFrames` once the card is in. */
+  panels: {
+    score: { cover: { x: 48, y: 942, w: 292, h: 72 }, x: 54, bar: { x: 51, y: 1050, w: 281, h: 23 }, fill: "#fc0200", glow: "rgba(252,2,0,0.75)", dot: "#fc0200" },
+    potential: { cover: { x: 418, y: 942, w: 292, h: 72 }, x: 423, bar: { x: 421, y: 1050, w: 279, h: 23 }, fill: "#5ef2f5", glow: "rgba(94,242,245,0.8)", dot: "#5ef2f5" },
+  },
+  panelBg: "#131414",
+  number: { baseline: 1006, size: 72, weight: 700 },
+  tag: { baseline: 995, size: 38, weight: 500 },
+  countFrames: 18,
   /** the card rises in and the face settles into the circle over these frames */
   enterFrames: 9,
   faceFrom: 1.3,

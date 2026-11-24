@@ -74,6 +74,22 @@ class Script(Base):
             self.assertIn("Wikimedia Commons", s["cite"])
             self.assertTrue(s["cite"].endswith("AI-edited images"))
 
+    def test_axend_payoff_replaces_the_game_card(self):
+        t = dict(seed_topic("RSG0001"), payoff="axend")
+        s = L.build_script(t)
+        self.assertEqual(L.lint_script(s, t), [])
+        kinds = [b["kind"] for b in s["beats"]]
+        self.assertNotIn("walkout", kinds, "SLA-1685 variant: the Axend card replaces the game card")
+        ax = s["beats"][-1]
+        sc = round(t["card"]["ovr"] / 10, 1)
+        self.assertEqual(ax["score"], {"value": sc, "tag": t["card"]["rarity"]})
+        self.assertEqual(ax["potential"]["tag"], "Chad")
+        self.assertGreater(ax["potential"]["value"], sc)
+        self.assertIn("scores %.1f." % sc, ax["vo"])
+        self.assertEqual(L.lint_vo(ax["vo"], "axend"), [])
+        s["beats"].insert(-1, dict(L.build_script(seed_topic("RSG0001"))["beats"][-2]))
+        self.assertTrue(any(e.startswith("payoff:") for e in L.lint_script(s, t)))
+
     def test_lint_catches_reworded_hook_and_banned_framing(self):
         t = seed_topic("RSG0001")
         s = L.build_script(t)
