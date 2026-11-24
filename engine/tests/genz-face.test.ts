@@ -48,12 +48,12 @@ test("beat skeleton: hook, bridge, 4-6 features, pivot, verdict, CTA (the test R
   assert.equal(parseScript(load("ok-G-yamal.json")).beats.at(-2)?.kind, "walkout");
 });
 
-test("rhythm: 22-28 cuts a minute and about 41-50 s on the two test Reels", () => {
+test("rhythm: 22-28 cuts a minute and about 38-50 s on the two test Reels (6 features, 0.2 s pads)", () => {
   for (const n of ["ok-A-yamal.json", "ok-B-keoghan.json"]) {
     const s = parseScript(load(n));
     const p = plan(s.durations, s.beats.map((b) => b.vo));
     assert.ok(p.cutsPerMin >= CUTS_PER_MIN.min && p.cutsPerMin <= CUTS_PER_MIN.max, `${n}: ${p.cutsPerMin.toFixed(1)} cuts/min`);
-    assert.ok(p.tl.seconds >= 40.5 && p.tl.seconds <= 50, `${n}: ${p.tl.seconds.toFixed(1)} s`);
+    assert.ok(p.tl.seconds >= 38 && p.tl.seconds <= 50, `${n}: ${p.tl.seconds.toFixed(1)} s`);
   }
 });
 
@@ -224,4 +224,17 @@ test("end hold (SLA-1685): the IG cut's shorter CTA hold moves only the last bea
   assert.equal(a.tl.frames - b.tl.frames, 18);
   assert.deepEqual(rule({ ...clone(load("ok-B-keoghan.json")), end_hold: 0.6, cut: "ig", platform: "ig" }), []);
   assert.deepEqual(rule({ ...clone(load("ok-B-keoghan.json")), end_hold: 0.1 }), ["E1"]);
+});
+
+test("axend beat (SLA-1685): needs its card and face assets; the card counts as an asset key", () => {
+  const s = load("ok-G-yamal.json") as { beats: Record<string, unknown>[]; assets: Record<string, string>; ratios: Record<string, number>; durations: number[] };
+  const img = String(s.beats.find((b) => b.kind === "walkout")?.img);
+  s.beats.push({ kind: "axend", img, card: "axend_card", label: "Eve", vo: "Want your own face card? Scan yours in Axend." });
+  s.durations.push(2.8);
+  assert.ok(!safeParseScript(s).ok, "a missing card asset is an error");
+  s.assets.axend_card = "brand/axend-call-2-action.png";
+  s.ratios.axend_card = 1344 / 752;
+  const r = safeParseScript(s);
+  assert.ok(r.ok, JSON.stringify(r));
+  assert.deepEqual(beatAssetKeys(r.ok ? r.script.beats.at(-1)! : (null as never)), [img, "axend_card"]);
 });

@@ -59,6 +59,8 @@ export const BeatSchema = z.discriminatedUnion("kind", [
     stats: z.array(Stat).length(6),
     ...common,
   }),
+  /** SLA-1685 (board, 24 Nov): the Axend CTA after the game card, reel-factory's card PNG (`card`) with the reel's face in its circle; "Chad" is patched to `label`. */
+  z.strictObject({ kind: z.literal("axend"), img: Name, card: Name, label: z.string().optional(), ...common }),
   z.strictObject({ kind: z.literal("cta"), head: z.array(Name).min(1).max(3), pills: z.array(Name).min(2).max(MAX_PILLS), on: z.number().int().min(0).optional(), tease: z.string().optional(), ...common }),
   /** Self-diagnosis hook (C, D, E): a topic card ("6 CHEEK TYPES") instead of the name photocard. No image = the narrator stands under it; one = a demo face; two = A/B side by side. */
   z.strictObject({ kind: z.literal("topic"), head: z.array(Name).min(1).max(4), sub: z.string().optional(), imgs: z.array(Name).max(2).optional(), labels: z.array(Name).max(2).optional(), pills: z.array(Name).max(MAX_PILLS).optional(), ...common }),
@@ -145,6 +147,7 @@ export type Script = z.infer<typeof ScriptSchema>;
 export function beatAssetKeys(b: Beat): string[] {
   if (b.kind === "topic") return b.imgs ?? [];
   if (b.kind === "versus") return [...b.imgs];
+  if (b.kind === "axend") return [b.img, b.card];
   return "img" in b && b.img ? [b.img] : [];
 }
 

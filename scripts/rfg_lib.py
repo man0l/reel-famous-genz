@@ -210,7 +210,10 @@ def lint_script(script, t):
     hook_kind = "hook" if kind == "celebrity" else "topic"
     if beats and beats[0]["kind"] != hook_kind:
         out.append("hook: a %s reel opens on the %s beat (%s), not %r" % (kind, hook_kind, "name photocard" if kind == "celebrity" else "topic card, no name", beats[0]["kind"]))
-    if len(beats) < 2 or beats[1]["kind"] != "narrator" or beats[1]["vo"] != bridge_line(t):
+    if kind == "celebrity":  # SLA-1685 (board, 24 Nov: pace): no spoken bridge, the hook cuts straight to the first feature
+        if len(beats) < 2 or beats[1]["kind"] != "feature":
+            out.append("bridge: a celebrity reel cuts from the hook straight to the first feature (no \"let's break down\" line)")
+    elif len(beats) < 2 or beats[1]["kind"] != "narrator" or beats[1]["vo"] != bridge_line(t):
         out.append("bridge: must be %r" % bridge_line(t))
     lo, hi = body_range(kind)
     nf = sum(1 for b in beats if b["kind"] == BODY[kind])
@@ -219,7 +222,10 @@ def lint_script(script, t):
     kinds = [b["kind"] for b in beats]
     if kind == "celebrity" and "walkout" not in kinds:
         out.append("payoff: a celebrity breakdown ends on the game card (walkout beat)")
-    if kinds[-1] != "cta":
+    if kind == "celebrity":  # SLA-1685 (board, 24 Nov): the game card hands over to the Axend CTA
+        if kinds[-2:] != ["walkout", "axend"]:
+            out.append("cta: a celebrity reel ends on the game card, then the Axend card (got %s)" % kinds[-2:])
+    elif kinds[-1] != "cta":
         out.append("cta: the last beat must be the comment prompt")
     elif not beats[-1]["vo"].startswith("Comment "):
         out.append("cta: the comment prompt starts with \"Comment \": %r" % beats[-1]["vo"])
@@ -473,7 +479,8 @@ def build_script(t):
     beats = [hb]
     br = bridge_line(t)
     blines = t.get("bridge_lines") or HOOKS.get("bridge_lines", {}).get(kind) or ["so let's break down", "what %s face" % pr["his"], "*actually has.*"]
-    beats.append({"kind": "narrator", "lines": blines, "vo": br, "hot": hot_of(br, ["face", "actually", "check", "one", "side"])})
+    if kind != "celebrity":  # SLA-1685 (board, 24 Nov): no "let's break down" filler on a celebrity reel; the edit (flash + crash zoom) carries it
+        beats.append({"kind": "narrator", "lines": blines, "vo": br, "hot": hot_of(br, ["face", "actually", "check", "one", "side"])})
     for i, f in enumerate(feats):
         beats.append(feature_beat(f, key(f.get("subject"))) if kind == "celebrity" else body_beat(kind, f, i, key))
     turn = t.get("turn")
@@ -490,6 +497,17 @@ def build_script(t):
         vo = card.get("vo") or "Put it all together and %s face card comes out at %d." % (pr["his"], int(card["ovr"]))
         beats.append({"kind": "walkout", "img": "cut", "name": name.upper(), "sub": card.get("sub") or "face card", "ovr": int(card["ovr"]), "rarity": card["rarity"],
                       "stats": [[k, int(stats[k])] for k in CFG["card"]["stats"]], "vo": vo, "hot": hot_of(vo, [str(card["ovr"]), "card"])})
+    if kind == "celebrity":  # SLA-1685: the Axend CTA (reel-factory's card) after the game card, the face in its circle
+        ax = CFG["axend"]
+        if not os.path.exists(p("stills", ax["card"])):
+            raise Fatal("missing Axend card stills/%s (copy %s)" % (ax["card"], ax["source"]))
+        assets["axend_card"], ratios["axend_card"] = ax["card"], png_ratio(p("stills", ax["card"]), 1344 / 752)
+        avo = t.get("axend_vo") or HOOKS["axend"]["vo"]
+        a = {"kind": "axend", "img": "cut", "card": "axend_card", "vo": avo, "hot": hot_of(avo, HOOKS["axend"]["hot"])}
+        if t.get("gender") == "W":
+            a["label"] = "Eve"
+        beats.append(a)
+        return script_out(t, kind, name, ep, faces, assets, sprites, ratios, beats)
     dflt = HOOKS.get("cta", {}).get(kind) or {}
     cta = t.get("cta") or {}
     nxt = t.get("next") or []
@@ -504,6 +522,10 @@ def build_script(t):
     if cta.get("tease"):
         c["tease"] = cta["tease"]
     beats.append(c)
+    return script_out(t, kind, name, ep, faces, assets, sprites, ratios, beats)
+
+
+def script_out(t, kind, name, ep, faces, assets, sprites, ratios, beats):
     credits = []
     for s in faces:
         cr = credit_of(t, s)
@@ -758,14 +780,18 @@ def ig_keep(script, durs, t=None):
         if len(pick) != n or not all(0 <= k < len(feats) for k in pick):
             raise Fatal("%s: ig_features must be %d feature indices in 0-%d, got %s" % ((t or {}).get("id"), n, len(feats) - 1, pick))
         return keep({feats[k] for k in pick})
-    first_n = keep(set(feats[:n]))
+    # an A+ hook asks how the look changed: its last feature (the change) is the answer, so it always stays
+    must = [feats[-1]] if (t or {}).get("template") == "A+" else []
+    rest = [i for i in feats if i not in must]
+    first_n = keep(set(must + rest[:n - len(must)]))
     if cut_seconds([durs[i] for i in first_n], script.get("loop"), IG["ig_end_hold_s"]) <= IG["seconds"][1] - IG["margin_s"]:
         return first_n
-    return keep(set(sorted(feats, key=lambda i: durs[i])[:n]))
+    return keep(set(must + sorted(rest, key=lambda i: durs[i])[:n - len(must)]))
 
 
 def ig_planned(tid):
-    """The IG cut's beat indices for a voiced reel, or None (no IG cut: Instagram gets the full reel)."""
+    """The beat indices the reel keeps for a voiced reel (SLA-1685, board 24 Nov: every reel is the short Instagram-style cut, on every
+    platform), or None (self-diagnosis reels and reels with 4 features or fewer keep every beat)."""
     wd = p("work", tid)
     if not os.path.exists(os.path.join(wd, "durations.json")):
         return None
@@ -775,21 +801,19 @@ def ig_planned(tid):
     return ig_keep(script, json.load(open(os.path.join(wd, "durations.json"))), topic(tid))
 
 
-def build_job(tid, cut=None):
-    """out/<id>/job: job.json + script.json (with durations) + public/ (cutouts, sprites, voice, fonts, sfx).
-    cut="ig": out/<id>_ig/job, the Instagram cut (ig_keep's beats, their voice clips renumbered)."""
+def build_job(tid):
+    """out/<id>/job: job.json + script.json (with durations) + public/ (cutouts, sprites, card, voice, fonts, sfx, music).
+    SLA-1685 (board, 24 Nov): every celebrity reel is the short cut (ig_keep's beats, their voice clips renumbered) on every platform."""
     wd = p("work", tid)
     script = json.load(open(os.path.join(wd, "script.json"), encoding="utf-8"))
     script["durations"] = json.load(open(os.path.join(wd, "durations.json")))
     keep = list(range(len(script["beats"])))
-    if cut == "ig":
-        keep = ig_keep(script, script["durations"], topic(tid))
-        if not keep:
-            raise Fatal("%s: no Instagram cut (%d features or fewer)" % (tid, IG["features"]))
+    if script["beats"][0]["kind"] == "hook":
+        keep = ig_keep(script, script["durations"], topic(tid)) or keep
         script["beats"] = [script["beats"][i] for i in keep]
         script["durations"] = [script["durations"][i] for i in keep]
-        script.update(cut="ig", platform="ig", end_hold=IG["ig_end_hold_s"])
-    name = tid + ("_" + cut if cut else "")
+        script.update(cut="ig", end_hold=IG["ig_end_hold_s"])
+    name = tid
     job = p("out", name, "job")
     shutil.rmtree(job, ignore_errors=True)
     pub = os.path.join(job, "public")
@@ -813,12 +837,13 @@ def build_job(tid, cut=None):
         if f.endswith(".b64"):
             with open(os.path.join(PACK, "sfx", f)) as src, open(os.path.join(pub, "sfx", f[:-4]), "wb") as dst:
                 dst.write(base64.b64decode(src.read()))
-    music = sorted(os.listdir(p("music"))) if os.path.isdir(p("music")) else []
-    if music:
-        pick = music[sum(map(ord, tid)) % len(music)]
-        os.makedirs(os.path.join(pub, "music"), exist_ok=True)
-        shutil.copyfile(p("music", pick), os.path.join(pub, "music", pick))
-        script["music"] = {"src": "music/" + pick, "volume": 0.12, "fade_in": 0.3, "fade_out": 1.2}
+    music = sorted(f for f in os.listdir(p("music")) if f.endswith(".mp3")) if os.path.isdir(p("music")) else []
+    if not music:  # SLA-1685 (board, 24 Nov): every reel has music
+        raise Fatal("no music tracks in %s (every reel has music; copy them from %s)" % (p("music"), CFG["music_source"]))
+    pick = music[sum(map(ord, tid)) % len(music)]
+    os.makedirs(os.path.join(pub, "music"), exist_ok=True)
+    shutil.copyfile(p("music", pick), os.path.join(pub, "music", pick))
+    script["music"] = {"src": "music/" + pick, "volume": 0.12, "fade_in": 0.3, "fade_out": 1.2}
     json.dump(script, open(os.path.join(job, "script.json"), "w", encoding="utf-8"), ensure_ascii=False)
     json.dump({"reel_id": name, "format": "reel-famous-genz", "template": script.get("template", ""), "composition": CFG["composition"]}, open(os.path.join(job, "job.json"), "w"))
     return job
@@ -912,16 +937,15 @@ def cf_submit(tid, job):
     return j["id"]
 
 
-def render_cloudflare(tid, wait=0, cut=None):
+def render_cloudflare(tid, wait=0):
     """Render out/<id>.mp4 on the reel-remotion Worker (Cloudflare Container; the genz-face composition is baked into its image).
     Submits the job unless one is already recorded, then polls for up to `wait` seconds. Raises Pending while it is still queued or
     running (the job id stays in state/cf-jobs.json, so the next call resumes), Fatal when the Worker fails it (the record is dropped,
-    so the next call submits again). cut="ig" renders the Instagram cut to out/<id>_ig.mp4 (job key <id>_ig)."""
+    so the next call submits again)."""
     rid = tid
-    tid = tid + ("_" + cut if cut else "")
     jid = cf_jobs().get(tid)
     if not jid:
-        jid = cf_submit(tid, build_job(rid, cut))
+        jid = cf_submit(tid, build_job(rid))
         cf_set(tid, jid)
     deadline = time.time() + wait
     while True:
@@ -1015,21 +1039,6 @@ def check_mp4(mp4, secs, voice):
     return bad
 
 
-def qa_ig(tid):
-    """QA of the Instagram cut (SLA-1685): None when the reel has no IG cut, else its problems ([] = post it on Instagram).
-    A failing IG cut never blocks the reel: Instagram then gets the full reel."""
-    keep = ig_planned(tid)
-    if not keep:
-        return None
-    mp4 = p("out", tid + "_ig.mp4")
-    if not os.path.exists(mp4):
-        return ["no out/%s_ig.mp4 (rfg.sh render %s)" % (tid, tid)]
-    if os.path.getmtime(mp4) < os.path.getmtime(p("work", tid, "durations.json")):
-        return ["out/%s_ig.mp4 is older than the voice (rfg.sh render %s --force)" % (tid, tid)]
-    durs = json.load(open(p("work", tid, "durations.json")))
-    return check_mp4(mp4, IG["seconds"], sum(durs[i] for i in keep))
-
-
 def qa(tid):
     """Automated QA of a rendered reel: lint, 1080x1920 with audio, length matches the voice track, cover under 2 MB. Returns problems."""
     t = topic(tid)
@@ -1041,7 +1050,10 @@ def qa(tid):
     s = json.load(open(sf, encoding="utf-8")) if os.path.exists(sf) else build_script(t)
     bad += ["lint: " + x for x in lint_script(s, t)]
     df = p("work", tid, "durations.json")
-    bad += check_mp4(mp4, (20, 60), sum(json.load(open(df))) if os.path.exists(df) else 0)
+    keep = ig_planned(tid) if os.path.exists(df) else None
+    durs = json.load(open(df)) if os.path.exists(df) else []
+    voice = sum(durs[i] for i in keep) if keep else sum(durs)
+    bad += check_mp4(mp4, tuple(IG["seconds"]) if s["beats"][0]["kind"] == "hook" else (20, 60), voice)  # SLA-1685: the short cut, 20-30 s
     if not bad:
         cover = make_cover(tid)
         if not 0 < os.path.getsize(cover) < 2e6:
@@ -1049,13 +1061,13 @@ def qa(tid):
     return bad
 
 
-def caption(t, cut=None):
+def caption(t):
     """Post text: hook / features + card + CTA / photo credit + AI-edited / hashtags. A topic's own `caption` (line 2) and `tags` win.
-    cut="ig" names only the features the IG cut shows."""
+    Names only the features the reel keeps (SLA-1685: every reel is the short cut)."""
     s = json.load(open(p("work", t["id"], "script.json"), encoding="utf-8")) if os.path.exists(p("work", t["id"], "script.json")) else build_script(t)
     feats = t["features"]
-    if cut == "ig":
-        keep = set(ig_planned(t["id"]) or [])
+    keep = set(ig_planned(t["id"]) or [])
+    if keep:
         fb = [i for i, b in enumerate(s["beats"]) if b["kind"] == "feature"]
         feats = [f for f, i in zip(t["features"], fb) if i in keep] or feats
     hook = s["beats"][0]["vo"]
@@ -1069,7 +1081,9 @@ def caption(t, cut=None):
     card = t.get("card") or {}
     if card.get("ovr"):
         body += " %s face card comes out at %d." % (pr["his"].capitalize(), card["ovr"])
-    body += " " + s["beats"][-1]["vo"]  # the reel's own comment prompt (per kind)
+    body += " " + s["beats"][-1]["vo"]  # the reel's own CTA: the Axend line (celebrity) or the comment prompt (per kind)
+    if s["beats"][-1]["kind"] == "axend":
+        body += " " + HOOKS["cta"]["celebrity"]["vo"]
     credits = []
     for s in faces_of(t):
         c = credit_of(t, s)
@@ -1100,13 +1114,13 @@ def gh_api(args, body=None):
     return r.returncode, (json.loads(r.stdout) if r.stdout.strip().startswith(("{", "[")) else {}), r.stderr
 
 
-def host(tid, cut=None):
+def host(tid):
     """Push out/<id>.mp4 + cover to the media branch; returns raw.githubusercontent URLs pinned to the commit.
     Not jsDelivr: the media branch is over its 50 MB package limit, so new jsDelivr URLs answer 403 (SLA-1669).
     The cache is keyed on the local file sizes, so a re-rendered reel is pushed again instead of reusing the old URL."""
     repo, br = SCHED["media_repo"], SCHED["media_branch"]
     h = hosted()
-    key = tid + ("_" + cut if cut else "")  # the IG cut shares the reel's cover (same hook frame)
+    key = tid
     files = ((p("out", key + ".mp4"), key + ".mp4"), (p("out", tid + "_cover.jpg"), tid + "_cover.jpg"))
     sizes = [os.path.getsize(f) if os.path.exists(f) else None for f, _ in files]
     if key in h and h[key].get("sizes") == sizes and "raw.githubusercontent.com" in h[key]["mp4"]:
@@ -1229,15 +1243,15 @@ def plan(start, days, posts_file=None):
 PLATFORM = {"instagram": "ig", "youtube": "yt", "threads": "threads", "pinterest": "pinterest"}
 
 
-def payload(tid, at, missing=None, cut=None, keys=None):
+def payload(tid, at, missing=None, keys=None):
     """One create_social_post call for a reel on the given accounts (default all four, or only the missing ones). Media URLs still go through
-    upload_social_media. cut="ig" posts the Instagram cut."""
+    upload_social_media."""
     t = topic(tid)
-    h = host(tid, cut)
+    h = host(tid)
     acc = SCHED["accounts"]
     keys = keys or missing or list(acc)
     ids = [acc[k] for k in keys]
-    out = {"reel": tid, "cut": cut or "full", "platforms": ",".join(PLATFORM[k] for k in keys), "publishAt": at, "integrationIds": ids, "content": caption(t, cut),
+    out = {"reel": tid, "platforms": ",".join(PLATFORM[k] for k in keys), "publishAt": at, "integrationIds": ids, "content": caption(t),
            "upload": {"video": h["mp4"], "thumbnail": h["cover"]},
            "media": [{"type": "video", "url": "<upload_social_media(upload.video)>", "thumbnail": "<upload_social_media(upload.thumbnail)>"}]}
     if acc["pinterest"] in ids:
@@ -1246,16 +1260,9 @@ def payload(tid, at, missing=None, cut=None, keys=None):
 
 
 def payloads(tid, at, missing=None):
-    """The create_social_post calls of one slot (SLA-1685): Instagram gets the IG cut in its own group when it passed QA, the other accounts
-    the full reel; otherwise one group with the full reel. Returns (payloads, note)."""
-    keys = list(missing or SCHED["accounts"])
-    ig = qa_ig(tid) if "instagram" in keys else None
-    if ig is None:
-        return [payload(tid, at, keys=keys)], None
-    if ig:
-        return [payload(tid, at, keys=keys)], "%s: IG cut not used (%s); Instagram gets the full reel" % (tid, "; ".join(ig))
-    rest = [k for k in keys if k != "instagram"]
-    return [payload(tid, at, cut="ig", keys=["instagram"])] + ([payload(tid, at, keys=rest)] if rest else []), None
+    """The create_social_post calls of one slot: one group, the same reel on every account (SLA-1685, board 24 Nov: the short cut everywhere,
+    YouTube included). Returns (payloads, note)."""
+    return [payload(tid, at, keys=list(missing or SCHED["accounts"]))], None
 
 
 def supply(start, days=3):

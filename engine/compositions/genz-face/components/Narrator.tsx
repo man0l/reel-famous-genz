@@ -2,8 +2,9 @@ import React from "react";
 import { Img, interpolate, useCurrentFrame } from "remotion";
 import { assetSrc } from "../util.ts";
 import { NARRATOR, type Pose } from "../theme.ts";
+import type { BeatKind } from "../schema.ts";
 
-export const DEFAULT_POSES: Record<string, Pose[]> = {
+export const DEFAULT_POSES: Record<BeatKind, Pose[]> = {
   narrator: ["point", "think", "cross", "present"],
   cta: ["cross", "present", "point"],
   verdict: ["present"],
@@ -15,6 +16,7 @@ export const DEFAULT_POSES: Record<string, Pose[]> = {
   check: ["point", "think", "present", "cross"],
   type: ["point"],
   versus: ["point"],
+  axend: ["point"],
 };
 
 /** The sprite asset for a pose; a pose the outfit has no sprite for (shock / approve until SLA-1641 delivers them) falls back to the first pose it has. */

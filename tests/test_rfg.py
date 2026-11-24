@@ -24,6 +24,8 @@ class Base(unittest.TestCase):
         for name in ("Barry Keoghan", "Timothée Chalamet", "Austin Butler", "Jacob Elordi"):
             os.makedirs(os.path.dirname(L.p("stills", L.cut_rel(name))), exist_ok=True)
             open(L.p("stills", L.cut_rel(name)), "wb").write(PNG)
+        os.makedirs(os.path.dirname(L.p("stills", L.CFG["axend"]["card"])), exist_ok=True)
+        open(L.p("stills", L.CFG["axend"]["card"]), "wb").write(PNG)
         subs = L.subjects()
         for name, cr in (("Austin Butler", "Gabriel Hutchinson, CC BY-SA 4.0"), ("Timothée Chalamet", "Harald Krichel, CC BY-SA 4.0"), ("Jacob Elordi", "Raph_PH, CC BY 4.0")):
             subs.setdefault(L.slug(name), {"name": name})["credit"] = cr
@@ -62,10 +64,13 @@ class Script(Base):
             s = L.build_script(t)
             self.assertEqual(L.lint_script(s, t), [], tid)
             kinds = [b["kind"] for b in s["beats"]]
-            self.assertEqual(kinds[:2], ["hook", "narrator"])
-            self.assertEqual(kinds[-2:], ["walkout", "cta"])
+            self.assertEqual(kinds[:2], ["hook", "feature"], "SLA-1685: no spoken bridge, the hook cuts to the first feature")
+            self.assertEqual(kinds[-2:], ["walkout", "axend"], "SLA-1685: the game card hands over to the Axend card")
             self.assertEqual(s["lane"], "B")
-            self.assertEqual(s["beats"][1]["vo"], "So let's break down what his face actually has.")
+            self.assertNotIn("let's break down", " ".join(b["vo"] for b in s["beats"]))
+            ax = s["beats"][-1]
+            self.assertEqual((ax["img"], ax["card"], ax["vo"]), ("cut", "axend_card", "Want your own face card? Scan yours in Axend."))
+            self.assertEqual(s["assets"]["axend_card"], L.CFG["axend"]["card"])
             self.assertIn("Wikimedia Commons", s["cite"])
             self.assertTrue(s["cite"].endswith("AI-edited images"))
 
@@ -302,8 +307,8 @@ class Retention(Base):
         self.assertEqual(s["beats"][0]["crop"], {"w": 1500, "x": -210, "y": 200})
 
     def test_cut_seconds_match_the_engine_clock(self):
-        # 3 clips: 2 pads of 0.35, end hold 1.2, loop 0.8 (engine timing.ts)
-        self.assertAlmostEqual(L.cut_seconds([1, 2, 3], 0.8), 6 + 0.7 + 1.2 + 0.8)
+        # 3 clips: 2 pads of 0.2, end hold 1.2, loop 0.8 (engine timing.ts)
+        self.assertAlmostEqual(L.cut_seconds([1, 2, 3], 0.8), 6 + 0.4 + 1.2 + 0.8)
 
     def test_ig_cut_keeps_four_features_and_every_other_beat(self):
         t = seed_topic("RSG0001")
@@ -311,39 +316,51 @@ class Retention(Base):
         kinds = [b["kind"] for b in s["beats"]]
         feats = [i for i, k in enumerate(kinds) if k == "feature"]
         self.assertEqual(len(feats), 6)
-        durs = [2.0, 2.4] + [3.0] * 6 + [3.2, 2.0]
+        durs = [2.0] + [3.0] * 6 + [3.2, 2.8]
         keep = L.ig_keep(s, durs, t)
-        self.assertEqual([kinds[i] for i in keep], ["hook", "narrator"] + ["feature"] * 4 + ["walkout", "cta"])
+        self.assertEqual([kinds[i] for i in keep], ["hook"] + ["feature"] * 4 + ["walkout", "axend"])
         self.assertEqual([i for i in keep if i in feats], feats[:4], "the first four when they fit")
         self.assertTrue(20 <= L.cut_seconds([durs[i] for i in keep], s["loop"], L.IG["ig_end_hold_s"]) <= 30)
         # the first four run long: the four shortest, in order
-        long = [2.0, 2.4, 6.0, 6.0, 2.5, 2.5, 2.6, 2.6, 3.2, 2.0]
+        long = [2.0, 8.0, 8.0, 2.5, 2.5, 2.6, 2.6, 3.2, 2.8]
         keep = L.ig_keep(s, long, t)
-        self.assertEqual([i for i in keep if i in feats], [4, 5, 6, 7])
+        self.assertEqual([i for i in keep if i in feats], [3, 4, 5, 6])
         # the topic picks
         keep = L.ig_keep(s, durs, dict(t, ig_features=[0, 2, 3, 5]))
         self.assertEqual([i for i in keep if i in feats], [feats[0], feats[2], feats[3], feats[5]])
         with self.assertRaises(L.Fatal):
             L.ig_keep(s, durs, dict(t, ig_features=[0, 1, 9, 2]))
+        # A+ (how did the look change?): the change feature always stays
+        keep = L.ig_keep(s, long, dict(t, template="A+"))
+        self.assertEqual([i for i in keep if i in feats], [3, 4, 5, feats[-1]])
         # four features: no IG cut
         t4 = dict(t, features=t["features"][:4])
         s4 = L.build_script(t4)
         self.assertIsNone(L.ig_keep(s4, [2.0] * len(s4["beats"]), t4))
 
-    def test_ig_caption_names_only_the_kept_features(self):
+    def test_lint_rejects_the_old_bridge_and_comment_ending(self):
+        t = seed_topic("RSG0001")
+        s = L.build_script(t)
+        old = dict(s, beats=s["beats"][:1] + [{"kind": "narrator", "lines": ["x"], "vo": "So let's break down what his face actually has."}] + s["beats"][1:])
+        self.assertTrue(any(x.startswith("bridge:") for x in L.lint_script(old, t)))
+        old = dict(s, beats=s["beats"][:-1] + [{"kind": "cta", "head": ["COMMENT"], "pills": ["A", "B"], "vo": "Comment who I should break down next."}])
+        self.assertTrue(any(x.startswith("cta:") for x in L.lint_script(old, t)))
+        self.assertEqual(L.build_script(dict(t, gender="W"))["beats"][-1]["label"], "Eve")
+
+    def test_caption_names_only_the_kept_features(self):
         t = seed_topic("RSG0001")
         wd = L.p("work", "RSG0001")
         os.makedirs(wd, exist_ok=True)
         s = L.build_script(t)
         json.dump(s, open(os.path.join(wd, "script.json"), "w"))
-        json.dump([2.0, 2.4] + [3.0] * 6 + [3.2, 2.0], open(os.path.join(wd, "durations.json"), "w"))
+        json.dump([2.0] + [3.0] * 6 + [3.2, 2.8], open(os.path.join(wd, "durations.json"), "w"))
         L.save_topic(t)
         try:
-            full, ig = L.caption(t).split("\n")[1], L.caption(t, "ig").split("\n")[1]
+            line = L.caption(t).split("\n")[1]
             labels = [f["label"].lower() for f in t["features"]]
-            self.assertIn(labels[5].split()[0], full)
-            self.assertNotIn(labels[5], ig)
-            self.assertIn(labels[0].split()[0], ig.lower())
+            self.assertNotIn(labels[5], line)
+            self.assertIn(labels[0].split()[0], line.lower())
+            self.assertIn("Scan yours in Axend. Comment who I should break down next.", line)
         finally:
             shutil.rmtree(wd)
 
