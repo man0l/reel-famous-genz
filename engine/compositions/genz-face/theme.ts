@@ -72,8 +72,8 @@ export const NARRATOR = { full: 1080, side: 760, sideRight: -20, punch: 0.04, pu
 export const PHOTOCARD = { width: 740, left: 170, top: 560, innerH: 880, border: 12, radius: 40 } as const;
 
 /** SLA-1685: full-frame hook. The painted cutout fills the frame from frame 0 (crop = width / left / top in frame pixels, a topic's `hook_crop`
- * wins), the headline is burned in large over a dark top fade, and nothing animates in: frame 0 is the finished layout. */
-export const HOOK_FULL = { crop: { w: 1400, x: -160, y: 250 }, head: 112, fade: 980 } as const;
+ * wins) with no headline over it (the hook is in the captions), and nothing animates in: frame 0 is the finished layout. */
+export const HOOK_FULL = { crop: { w: 1400, x: -160, y: 250 } } as const;
 
 /** Self-diagnosis layouts (C, D, E): the demo card of a check (crop = image width / left / top in card pixels), the topic card and the A/B panels. */
 export const SELFTEST = {

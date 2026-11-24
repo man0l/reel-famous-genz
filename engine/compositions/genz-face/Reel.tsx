@@ -3,13 +3,13 @@ import { AbsoluteFill, Audio, Freeze, Img, interpolate, Sequence, staticFile, us
 import { assetSrc, pad2 } from "./util.ts";
 import { Fonts } from "./components/Fonts.tsx";
 import { Stage } from "./components/Stage.tsx";
-import { Caption, Credit, Tag } from "./components/Text.tsx";
+import { Caption } from "./components/Text.tsx";
 import { DEFAULT_POSES, Narrator, spriteFor } from "./components/Narrator.tsx";
 import { CalloutView } from "./components/Callout.tsx";
 import { BridgeText, CtaView, HookView, PackView, VerdictView, WalkoutView } from "./components/Cards.tsx";
 import { CheckView, TopicView, TypeHeader, VersusView } from "./components/SelfTest.tsx";
 import { cutRect } from "./geometry.ts";
-import { footerOf, parseScript, type Beat, type Script } from "./schema.ts";
+import { parseScript, type Beat, type Script } from "./schema.ts";
 import { FPS } from "./theme.ts";
 import type { Pose } from "./theme.ts";
 import { captionAt, fadeIn, framesSinceCut, plan, stepAt, type BeatPlan, type Plan } from "./timing.ts";
@@ -118,8 +118,7 @@ export const ReelView: React.FC<{ script: Script; audio?: boolean }> = ({ script
     <AbsoluteFill style={{ background: "#0D0718", color: "#fff" }}>
       <Fonts />
       <Stage lane={script.lane} lens={script.lens} />
-      <Tag en={script.tag.en} ko={script.tag.ko} hangul={script.hangul} />
-      <Credit text={footerOf(script)} />
+      {/* SLA-1685 (board, 24 Nov): no episode tag and no credit line in the picture; the photo credit and AI-edited note ride in the post text */}
       {pl.tl.beats.map((time, i) => (
         <Sequence key={i} from={time.from} durationInFrames={time.frames} name={`beat ${pad2(i)} ${script.beats[i].kind}`} layout="none">
           <BeatView script={script} index={i} bp={pl.beats[i]} />

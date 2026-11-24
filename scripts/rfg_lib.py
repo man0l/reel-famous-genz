@@ -451,7 +451,7 @@ def build_script(t):
     ep = int(t.get("ep") or re.sub(r"\D", "", t["id"]) or 1)
     hook = hook_lines(t)
     if kind == "celebrity":
-        hb = {"kind": "hook", "img": "cut", "head": head_lines(hook[0]), "card": [first(name).upper(), t.get("card_line") or "face file · ep.%02d" % ep],
+        hb = {"kind": "hook", "img": "cut", "head": head_lines(hook[0]), "card": [first(name).upper(), t.get("card_line") or "face breakdown"],
               "badge": CFG["badge"], "vo": " ".join(hook)}
         if len(hook) > 1:
             hb["sub"] = hook[1].lower() if len(hook[1]) < 70 else hook[1]
