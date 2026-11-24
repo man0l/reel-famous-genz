@@ -89,10 +89,9 @@ def cmd_tts(a):
     # the line each clip says (SLA-1685): a clip whose beat changed (beats added, dropped or reworded) is voiced again, not reused by index
     tp = os.path.join(vd, "lines.json")
     said = json.load(open(tp, encoding="utf-8")) if os.path.exists(tp) else None
+    # clips without lines.json can't be matched to their lines (SLA-1685: reusing them by index shipped the old beats' voice), so all are voiced again
     todo = [(i, b["vo"]) for i, b in enumerate(s["beats"])
-            if not os.path.exists(os.path.join(vd, "%02d.mp3" % i)) or (said is not None and (i >= len(said) or said[i] != b["vo"]))]
-    if said is None and len(todo) < len(s["beats"]):
-        log("%s: voice clips without lines.json; reusing them by index (tts --force if the beats changed)" % a.id)
+            if said is None or not os.path.exists(os.path.join(vd, "%02d.mp3" % i)) or i >= len(said) or said[i] != b["vo"]]
     with cf.ThreadPoolExecutor(4) as ex:
         list(ex.map(lambda x: L.tts(x[1], os.path.join(vd, "%02d.mp3" % x[0])), todo))
     json.dump([b["vo"] for b in s["beats"]], open(tp, "w", encoding="utf-8"), ensure_ascii=False)
