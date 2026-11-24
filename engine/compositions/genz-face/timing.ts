@@ -57,26 +57,32 @@ export interface BeatTime {
 
 export interface Timeline {
   beats: BeatTime[];
+  /** whole reel, loop tail included */
   seconds: number;
   frames: number;
+  /** first frame of the silent loop tail (= frames without one) */
+  body: number;
 }
 
-export function timeline(durations: readonly number[], fps = FPS): Timeline {
+/** `loop`: seconds of silent loop tail after the end hold (frame 0 held, SLA-1685); it adds frames and moves nothing else. `endHold`: hold
+ * after the last clip (the IG cut shortens it, the loop tail carries the end). */
+export function timeline(durations: readonly number[], fps = FPS, loop = 0, endHold = END_HOLD_S): Timeline {
   const n = durations.length;
   const beats: BeatTime[] = [];
   let off = 0;
   for (let i = 0; i < n; i++) {
     const last = i === n - 1;
-    const span = durations[i] + (last ? END_HOLD_S : PAD_S);
+    const span = durations[i] + (last ? endHold : PAD_S);
     beats.push({ voice: durations[i], span, shown: span + (last ? 0 : XFADE_S), off, from: Math.round(off * fps), frames: 0 });
     off += span;
   }
-  const frames = Math.round(off * fps);
+  const body = Math.round(off * fps);
+  const tail = loop > 0 ? Math.round(loop * fps) : 0;
   beats.forEach((b, i) => {
-    const end = i === n - 1 ? frames : Math.round((b.off + b.shown) * fps);
+    const end = i === n - 1 ? body : Math.round((b.off + b.shown) * fps);
     b.frames = Math.max(1, end - b.from);
   });
-  return { beats, seconds: off, frames };
+  return { beats, seconds: off + tail / fps, frames: body + tail, body };
 }
 
 /** Crossfade opacity of beat i at global time T (seconds): 1 for the first beat, else ramps 0 -> 1 over XFADE_S from its start. */
@@ -116,8 +122,8 @@ export interface Plan {
 }
 
 /** The cut plan: a chunk start is a cut when it is at least MIN_CUT_GAP_S after the previous cut, so the rate stays in 22-28 cuts a minute. */
-export function plan(durations: readonly number[], vo: readonly string[], gap = MIN_CUT_GAP_S): Plan {
-  const tl = timeline(durations, FPS);
+export function plan(durations: readonly number[], vo: readonly string[], gap = MIN_CUT_GAP_S, loop = 0, endHold = END_HOLD_S): Plan {
+  const tl = timeline(durations, FPS, loop, endHold);
   let last = -Infinity;
   const cutTimes: number[] = [];
   const beats = tl.beats.map((time, i) => {
@@ -134,7 +140,7 @@ export function plan(durations: readonly number[], vo: readonly string[], gap = 
     });
     return { time, parts, windows, cuts };
   });
-  return { tl, beats, cutTimes, cutsPerMin: cutTimes.length / (tl.seconds / 60) };
+  return { tl, beats, cutTimes, cutsPerMin: cutTimes.length / (tl.body / FPS / 60) };
 }
 
 /** How many cuts have happened in the beat by chunk index j (pose / crop step). */

@@ -98,13 +98,28 @@ def cmd_tts(a):
 
 
 def cmd_render(a):
-    try:
-        out = L.render_cloudflare(a.id, a.wait)
-    except L.Pending as e:
-        log(str(e))
+    """The full reel, then the Instagram cut (SLA-1685) when the reel has more features than it keeps. A cut whose MP4 is newer than the script
+    and the voice is not rendered again (so a call that collects the IG cut leaves the full one alone); --force renders both again."""
+    inputs = max(os.path.getmtime(p("work", a.id, f)) for f in ("script.json", "durations.json"))
+    pending = False
+    for cut in [None] + (["ig"] if L.ig_planned(a.id) else []):
+        name = a.id + ("_" + cut if cut else "")
+        mp4 = p("out", name + ".mp4")
+        if not getattr(a, "force", False) and name not in L.cf_jobs() and os.path.exists(mp4) and os.path.getmtime(mp4) > inputs:
+            log("%s: %s is up to date (--force renders it again)" % (name, mp4))
+            continue
+        if getattr(a, "force", False) and name not in L.cf_jobs() and os.path.exists(mp4):
+            os.remove(mp4)
+        try:
+            out = L.render_cloudflare(a.id, a.wait, cut)
+        except L.Pending as e:
+            log(str(e))
+            pending = True
+            continue
+        log("%s: wrote %s (%.1f MB)" % (name, out, os.path.getsize(out) / 1e6))
+    if pending:
         return 75
     L.set_status(a.id, "rendered")
-    log("%s: wrote %s (%.1f MB)" % (a.id, out, os.path.getsize(out) / 1e6))
 
 
 def cmd_make(a):
@@ -164,11 +179,16 @@ def cmd_qa(a):
     if [r for r in L.topics() if r["id"] == a.id and r["status"] == "rendered"]:
         L.set_status(a.id, "qa_ok")
     log("QA PASS %s (cover out/%s_cover.jpg)" % (a.id, a.id))
+    ig = L.qa_ig(a.id)
+    if ig is not None:
+        log("IG cut %s: %s" % ("PASS" if not ig else "FAIL", "out/%s_ig.mp4" % a.id if not ig else "; ".join(ig) + " (Instagram gets the full reel)"))
 
 
 def cmd_host(a):
     h = L.host(a.id)
     log("%s video %s\n%s cover %s" % (a.id, h["mp4"], a.id, h["cover"]))
+    if L.qa_ig(a.id) == []:
+        log("%s IG cut %s" % (a.id, L.host(a.id, "ig")["mp4"]))
 
 
 def cmd_plan(a):
@@ -189,9 +209,15 @@ def cmd_plan(a):
         if bad:
             log("SKIP %s: QA FAIL %s" % (f["reel"], "; ".join(bad)))
             continue
-        out.append(L.payload(f["reel"], f["publishAt"]))
+        got, note = L.payloads(f["reel"], f["publishAt"])
+        out += got
+        if note:
+            log(note)
     for g in pl["gaps"]:
-        out.append(L.payload(g["reel"], g["publishAt"], g["missing"]))
+        got, note = L.payloads(g["reel"], g["publishAt"], g["missing"])
+        out += got
+        if note:
+            log(note)
     f = p("state", "schedule-%s.json" % L.now()[:10])
     json.dump({"start": str(day(a.start)), "days": a.days, "posts": out, "short": pl["short"], "notes": pl["notes"]}, open(f, "w", encoding="utf-8"), indent=1, ensure_ascii=False)
     log("wrote %s: %d create_social_post payload(s)" % (f, len(out)))
@@ -227,7 +253,7 @@ def main(argv=None):
     for name in ("copy", "tts"):
         q = sp.add_parser(name); q.add_argument("id"); q.add_argument("--force", action="store_true")
     for name in ("render", "make"):
-        q = sp.add_parser(name); q.add_argument("id")
+        q = sp.add_parser(name); q.add_argument("id"); q.add_argument("--force", action="store_true", help="render again even when the MP4 is up to date")
         q.add_argument("--wait", type=int, default=0, help="seconds to wait for the Cloudflare render (default 0: submit or check, then return)")
     q = sp.add_parser("posted"); q.add_argument("id"); q.add_argument("--platform", required=True); q.add_argument("--url", default="")
     q = sp.add_parser("stats"); q.add_argument("id"); q.add_argument("--views", type=int)

@@ -1,8 +1,8 @@
 // Strict zod schema for the genz-face script.json (genz-face.beat.v1). Source of truth: formats/genz-face/beat.schema.json and BUILD-BRIEF section 1.
 // Unknown keys are errors. Rule ids in messages ("[E2] ...") become SchemaIssue.rule:
-// E1 schema, E3 unknown asset key, E6 durations length, E7 no score out of 10 on screen, E8 text over 14 words.
+// E1 schema, E3 unknown asset key, E6 durations length, E7 no score out of 10 on screen, E8 text over 14 words, E9 loop tail outside 0.3-2 s.
 import { z } from "zod";
-import { MAX_CHIPS, MAX_FEATURES, MAX_LINE_WORDS, MAX_PILLS, POSES } from "./theme.ts";
+import { LOOP_S, MAX_CHIPS, MAX_FEATURES, MAX_LINE_WORDS, MAX_PILLS, POSES } from "./theme.ts";
 
 const Name = z.string().min(1);
 const Frac = z.number().min(-0.25).max(1.25);
@@ -30,7 +30,12 @@ export const CalloutSchema = z.strictObject({
 });
 
 export const BeatSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("hook"), img: Name, head: z.array(Name).min(1).max(4), sub: z.string().optional(), sub_ko: z.string().optional(), card: Pair, tilt: z.number().min(-12).max(12).optional(), badge: Pair.optional(), ...common }),
+  z.strictObject({ kind: z.literal("hook"), img: Name, head: z.array(Name).min(1).max(4), sub: z.string().optional(), sub_ko: z.string().optional(), card: Pair, tilt: z.number().min(-12).max(12).optional(), badge: Pair.optional(),
+    /** SLA-1685: "full" (default) = the cutout fills the frame from frame 0, headline burned in over it; "card" = the old holo photocard */
+    layout: z.enum(["full", "card"]).optional(),
+    /** full layout: cutout width / left / top in frame pixels (theme HOOK_FULL.crop when missing) */
+    crop: CropSchema.optional(),
+    ...common }),
   z.strictObject({ kind: z.literal("pack"), img: Name, head: z.array(Name).min(1).max(3), name: Name, sub: z.string().optional(), ...common }),
   z.strictObject({ kind: z.literal("narrator"), lines: z.array(Name).min(1).max(4), ...common }),
   z.strictObject({ kind: z.literal("feature"), img: Name, crop: CropSchema, callouts: z.array(CalloutSchema).min(1).max(3), ...common }),
@@ -104,6 +109,12 @@ export const ScriptSchema = z
     sfx: z.boolean().default(true),
     caption: z.string().optional(),
     platform: z.enum(["ig", "yt"]).optional(),
+    /** SLA-1685: seconds of silent loop tail after the end hold (frame 0 held, so the replay reads as one loop) */
+    loop: z.number().optional(),
+    /** SLA-1685: "ig" = the Instagram cut (4 callouts, 20-30 s); the renderer ignores it */
+    cut: z.enum(["full", "ig"]).optional(),
+    /** SLA-1685: seconds the last beat holds after its voice (theme END_HOLD_S when missing; the IG cut uses 0.6) */
+    end_hold: z.number().min(0.3).max(3).optional(),
   })
   .superRefine((s, ctx) => {
     s.beats.forEach((b, i) => {
@@ -121,6 +132,9 @@ export const ScriptSchema = z
       }
     });
     for (const k of Object.values(s.sprites)) if (k && !(k in s.assets)) ctx.addIssue({ code: "custom", path: ["sprites"], message: `[E3] unknown asset key "${k}" (not in assets)` });
+    if (s.loop !== undefined && !(s.loop >= LOOP_S.min && s.loop <= LOOP_S.max)) {
+      ctx.addIssue({ code: "custom", path: ["loop"], message: `[E9] loop tail ${s.loop} s is outside ${LOOP_S.min}-${LOOP_S.max} s` });
+    }
     if (s.durations.length !== s.beats.length) {
       ctx.addIssue({ code: "custom", path: ["durations"], message: `[E6] durations has ${s.durations.length} entries for ${s.beats.length} beats` });
     }

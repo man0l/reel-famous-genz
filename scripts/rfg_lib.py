@@ -232,6 +232,8 @@ def lint_script(script, t):
             right = label_right(c["pos"], c.get("label", ""))
             if right > 1060:
                 out.append("%s: callout %r ends at x=%d, past the frame (max 1060); move pos left" % (where, c.get("label"), right))
+    if "loop" in script and not 0.3 <= script["loop"] <= 2.0:
+        out.append("loop: the loop tail is %s s (want 0.3-2.0 s)" % script["loop"])
     for s in faces_of(t):
         if not credit_of(t, s):
             out.append("credit: no photo credit for %s (Commons author + licence)" % s)
@@ -454,6 +456,8 @@ def build_script(t):
         if len(hook) > 1:
             hb["sub"] = hook[1].lower() if len(hook[1]) < 70 else hook[1]
         hb["hot"] = hot_of(hb["vo"], [first(name), "attractive", "viral"])
+        if t.get("hook_crop"):  # SLA-1685: where the cutout sits in the full-frame hook (width / left / top in frame pixels)
+            hb["crop"] = t["hook_crop"]
     else:
         hc = t.get("hook_card") or {}
         hb = {"kind": "topic", "head": hc.get("head") or head_lines(hook[0]), "vo": " ".join(hook)}
@@ -510,7 +514,8 @@ def build_script(t):
     cite = "Portraits painted from photos by %s, Wikimedia Commons" % "; ".join(credits) if len(credits) > 1 else "Portrait painted from a photo by %s, Wikimedia Commons" % credits[0]
     out = {"format": "genz-face", "reel_id": t["id"], "template": t["template"], "footer": CFG["footer"], "lane": CFG["lane"], "lens": CFG["lens"],
            "episode_type": "celebrity" if kind == "celebrity" else "self_diagnosis", "tag": {"en": CFG["tag"] % ep},
-           "cite": "%s · %s" % (cite, CFG["footer"]), "hangul": False, "assets": assets, "sprites": sprites, "ratios": ratios, "beats": beats, "sfx": True}
+           "cite": "%s · %s" % (cite, CFG["footer"]), "hangul": False, "assets": assets, "sprites": sprites, "ratios": ratios, "beats": beats, "sfx": True,
+           "loop": CFG["loop_s"]}
     if name:
         out["name"] = name
     return out
@@ -731,12 +736,61 @@ def engine():
     raise Fatal("no engine/ with the %r composition in %s" % (CFG["composition"], c))
 
 
-def build_job(tid):
-    """out/<id>/job: job.json + script.json (with durations) + public/ (cutouts, sprites, voice, fonts, sfx)."""
+IG = CFG["ig_cut"]
+
+
+def cut_seconds(durs, loop=0, end_hold=None):
+    """Length of a cut from its voice clips: pad after every clip but the last, the end hold after it, then the loop tail (engine timing.ts)."""
+    return sum(durs) + IG["pad_s"] * (len(durs) - 1) + (IG["end_hold_s"] if end_hold is None else end_hold) + (loop or 0)
+
+
+def ig_keep(script, durs, t=None):
+    """Beat indices of the Instagram cut (SLA-1685): every beat but the features, plus `ig_cut.features` of them (the topic's `ig_features`,
+    else the first ones, else the shortest ones when the first run past the cap), in order. None when the reel has no more features than that."""
+    beats = script["beats"]
+    feats = [i for i, b in enumerate(beats) if b["kind"] == "feature"]
+    n = IG["features"]
+    if len(feats) <= n:
+        return None
+    keep = lambda chosen: [i for i in range(len(beats)) if i not in feats or i in chosen]
+    pick = (t or {}).get("ig_features")
+    if pick:
+        if len(pick) != n or not all(0 <= k < len(feats) for k in pick):
+            raise Fatal("%s: ig_features must be %d feature indices in 0-%d, got %s" % ((t or {}).get("id"), n, len(feats) - 1, pick))
+        return keep({feats[k] for k in pick})
+    first_n = keep(set(feats[:n]))
+    if cut_seconds([durs[i] for i in first_n], script.get("loop"), IG["ig_end_hold_s"]) <= IG["seconds"][1] - IG["margin_s"]:
+        return first_n
+    return keep(set(sorted(feats, key=lambda i: durs[i])[:n]))
+
+
+def ig_planned(tid):
+    """The IG cut's beat indices for a voiced reel, or None (no IG cut: Instagram gets the full reel)."""
+    wd = p("work", tid)
+    if not os.path.exists(os.path.join(wd, "durations.json")):
+        return None
+    script = json.load(open(os.path.join(wd, "script.json"), encoding="utf-8"))
+    if script["beats"][0]["kind"] != "hook":  # self-diagnosis reels keep one cut
+        return None
+    return ig_keep(script, json.load(open(os.path.join(wd, "durations.json"))), topic(tid))
+
+
+def build_job(tid, cut=None):
+    """out/<id>/job: job.json + script.json (with durations) + public/ (cutouts, sprites, voice, fonts, sfx).
+    cut="ig": out/<id>_ig/job, the Instagram cut (ig_keep's beats, their voice clips renumbered)."""
     wd = p("work", tid)
     script = json.load(open(os.path.join(wd, "script.json"), encoding="utf-8"))
     script["durations"] = json.load(open(os.path.join(wd, "durations.json")))
-    job = p("out", tid, "job")
+    keep = list(range(len(script["beats"])))
+    if cut == "ig":
+        keep = ig_keep(script, script["durations"], topic(tid))
+        if not keep:
+            raise Fatal("%s: no Instagram cut (%d features or fewer)" % (tid, IG["features"]))
+        script["beats"] = [script["beats"][i] for i in keep]
+        script["durations"] = [script["durations"][i] for i in keep]
+        script.update(cut="ig", platform="ig", end_hold=IG["ig_end_hold_s"])
+    name = tid + ("_" + cut if cut else "")
+    job = p("out", name, "job")
     shutil.rmtree(job, ignore_errors=True)
     pub = os.path.join(job, "public")
     os.makedirs(pub)
@@ -746,7 +800,9 @@ def build_job(tid):
             raise Fatal("missing asset %s" % rel)
         os.makedirs(os.path.dirname(os.path.join(pub, rel)), exist_ok=True)
         shutil.copyfile(src, os.path.join(pub, rel))
-    shutil.copytree(os.path.join(wd, "vo"), os.path.join(pub, "vo"))
+    os.makedirs(os.path.join(pub, "vo"))
+    for j, i in enumerate(keep):
+        shutil.copyfile(os.path.join(wd, "vo", "%02d.mp3" % i), os.path.join(pub, "vo", "%02d.mp3" % j))
     eng_fonts = os.path.join(engine(), "engine", "fonts")
     os.makedirs(os.path.join(pub, "fonts"))
     for d in (eng_fonts, os.path.join(PACK, "fonts")):
@@ -764,7 +820,7 @@ def build_job(tid):
         shutil.copyfile(p("music", pick), os.path.join(pub, "music", pick))
         script["music"] = {"src": "music/" + pick, "volume": 0.12, "fade_in": 0.3, "fade_out": 1.2}
     json.dump(script, open(os.path.join(job, "script.json"), "w", encoding="utf-8"), ensure_ascii=False)
-    json.dump({"reel_id": tid, "format": "reel-famous-genz", "template": script.get("template", ""), "composition": CFG["composition"]}, open(os.path.join(job, "job.json"), "w"))
+    json.dump({"reel_id": name, "format": "reel-famous-genz", "template": script.get("template", ""), "composition": CFG["composition"]}, open(os.path.join(job, "job.json"), "w"))
     return job
 
 
@@ -856,14 +912,16 @@ def cf_submit(tid, job):
     return j["id"]
 
 
-def render_cloudflare(tid, wait=0):
+def render_cloudflare(tid, wait=0, cut=None):
     """Render out/<id>.mp4 on the reel-remotion Worker (Cloudflare Container; the genz-face composition is baked into its image).
     Submits the job unless one is already recorded, then polls for up to `wait` seconds. Raises Pending while it is still queued or
     running (the job id stays in state/cf-jobs.json, so the next call resumes), Fatal when the Worker fails it (the record is dropped,
-    so the next call submits again)."""
+    so the next call submits again). cut="ig" renders the Instagram cut to out/<id>_ig.mp4 (job key <id>_ig)."""
+    rid = tid
+    tid = tid + ("_" + cut if cut else "")
     jid = cf_jobs().get(tid)
     if not jid:
-        jid = cf_submit(tid, build_job(tid))
+        jid = cf_submit(tid, build_job(rid, cut))
         cf_set(tid, jid)
     deadline = time.time() + wait
     while True:
@@ -877,7 +935,7 @@ def render_cloudflare(tid, wait=0):
         if time.time() >= deadline:
             prog = "%s %d%%" % (j.get("phase"), int(float(j.get("progress") or 0) * 100)) if j.get("phase") else ""
             queue = "queue position %s" % j["queue_position"] if j.get("queue_position") else ""
-            raise Pending("%s: job %s is %s %s; run `rfg.sh render %s` again to collect it" % (tid, jid, state, prog or queue, tid))
+            raise Pending("%s: job %s is %s %s; run `rfg.sh render %s` again to collect it" % (tid, jid, state, prog or queue, rid))
         time.sleep(15)
     st, data = cf_req("GET", "/out/%s.mp4" % jid, timeout=300)
     if st != 200 or len(data) < 20000 or data[4:8] != b"ftyp":
@@ -940,6 +998,38 @@ def make_cover(tid):
     return out
 
 
+def check_mp4(mp4, secs, voice):
+    """1080x1920 with an audio stream, length inside `secs` and not shorter than the voice track. Returns problems."""
+    bad = []
+    info = probe(mp4)
+    v = [x for x in info.get("streams", []) if x.get("codec_type") == "video"]
+    if not v or (v[0].get("width"), v[0].get("height")) != (1080, 1920):
+        bad.append("video is not 1080x1920: %s" % (v[0] if v else "no video stream"))
+    if not any(x.get("codec_type") == "audio" for x in info.get("streams", [])):
+        bad.append("no audio stream")
+    dur = float(info.get("format", {}).get("duration") or 0)
+    if not secs[0] <= dur <= secs[1]:
+        bad.append("length %.1f s is outside %d-%d s" % (dur, secs[0], secs[1]))
+    if dur < voice:
+        bad.append("length %.1f s is shorter than the voice track %.1f s (truncated render)" % (dur, voice))
+    return bad
+
+
+def qa_ig(tid):
+    """QA of the Instagram cut (SLA-1685): None when the reel has no IG cut, else its problems ([] = post it on Instagram).
+    A failing IG cut never blocks the reel: Instagram then gets the full reel."""
+    keep = ig_planned(tid)
+    if not keep:
+        return None
+    mp4 = p("out", tid + "_ig.mp4")
+    if not os.path.exists(mp4):
+        return ["no out/%s_ig.mp4 (rfg.sh render %s)" % (tid, tid)]
+    if os.path.getmtime(mp4) < os.path.getmtime(p("work", tid, "durations.json")):
+        return ["out/%s_ig.mp4 is older than the voice (rfg.sh render %s --force)" % (tid, tid)]
+    durs = json.load(open(p("work", tid, "durations.json")))
+    return check_mp4(mp4, IG["seconds"], sum(durs[i] for i in keep))
+
+
 def qa(tid):
     """Automated QA of a rendered reel: lint, 1080x1920 with audio, length matches the voice track, cover under 2 MB. Returns problems."""
     t = topic(tid)
@@ -950,20 +1040,8 @@ def qa(tid):
     sf = p("work", tid, "script.json")
     s = json.load(open(sf, encoding="utf-8")) if os.path.exists(sf) else build_script(t)
     bad += ["lint: " + x for x in lint_script(s, t)]
-    info = probe(mp4)
-    v = [x for x in info.get("streams", []) if x.get("codec_type") == "video"]
-    if not v or (v[0].get("width"), v[0].get("height")) != (1080, 1920):
-        bad.append("video is not 1080x1920: %s" % (v[0] if v else "no video stream"))
-    if not any(x.get("codec_type") == "audio" for x in info.get("streams", [])):
-        bad.append("no audio stream")
-    dur = float(info.get("format", {}).get("duration") or 0)
-    if not 20 <= dur <= 60:
-        bad.append("length %.1f s is outside 20-60 s" % dur)
     df = p("work", tid, "durations.json")
-    if os.path.exists(df):
-        voice = sum(json.load(open(df)))
-        if dur < voice:
-            bad.append("length %.1f s is shorter than the voice track %.1f s (truncated render)" % (dur, voice))
+    bad += check_mp4(mp4, (20, 60), sum(json.load(open(df))) if os.path.exists(df) else 0)
     if not bad:
         cover = make_cover(tid)
         if not 0 < os.path.getsize(cover) < 2e6:
@@ -971,15 +1049,21 @@ def qa(tid):
     return bad
 
 
-def caption(t):
-    """Post text: hook / features + card + CTA / photo credit + AI-edited / hashtags. A topic's own `caption` (line 2) and `tags` win."""
+def caption(t, cut=None):
+    """Post text: hook / features + card + CTA / photo credit + AI-edited / hashtags. A topic's own `caption` (line 2) and `tags` win.
+    cut="ig" names only the features the IG cut shows."""
     s = json.load(open(p("work", t["id"], "script.json"), encoding="utf-8")) if os.path.exists(p("work", t["id"], "script.json")) else build_script(t)
+    feats = t["features"]
+    if cut == "ig":
+        keep = set(ig_planned(t["id"]) or [])
+        fb = [i for i, b in enumerate(s["beats"]) if b["kind"] == "feature"]
+        feats = [f for f, i in zip(t["features"], fb) if i in keep] or feats
     hook = s["beats"][0]["vo"]
     pr = pron(t)
     if t.get("caption"):
         body = t["caption"].strip()
     else:
-        labels = [f["label"].replace(" + ", " and ").replace(",", "").lower() for f in t["features"]]
+        labels = [f["label"].replace(" + ", " and ").replace(",", "").lower() for f in feats]
         body = (", ".join(labels[:-1]) + " and " + labels[-1] if len(labels) > 1 else labels[0])
         body = body[0].upper() + body[1:] + "."
     card = t.get("card") or {}
@@ -1016,17 +1100,19 @@ def gh_api(args, body=None):
     return r.returncode, (json.loads(r.stdout) if r.stdout.strip().startswith(("{", "[")) else {}), r.stderr
 
 
-def host(tid):
+def host(tid, cut=None):
     """Push out/<id>.mp4 + cover to the media branch; returns raw.githubusercontent URLs pinned to the commit.
     Not jsDelivr: the media branch is over its 50 MB package limit, so new jsDelivr URLs answer 403 (SLA-1669).
     The cache is keyed on the local file sizes, so a re-rendered reel is pushed again instead of reusing the old URL."""
     repo, br = SCHED["media_repo"], SCHED["media_branch"]
     h = hosted()
-    sizes = [os.path.getsize(f) if os.path.exists(f) else None for f in (p("out", tid + ".mp4"), p("out", tid + "_cover.jpg"))]
-    if tid in h and h[tid].get("sizes") == sizes and "raw.githubusercontent.com" in h[tid]["mp4"]:
-        return h[tid]
+    key = tid + ("_" + cut if cut else "")  # the IG cut shares the reel's cover (same hook frame)
+    files = ((p("out", key + ".mp4"), key + ".mp4"), (p("out", tid + "_cover.jpg"), tid + "_cover.jpg"))
+    sizes = [os.path.getsize(f) if os.path.exists(f) else None for f, _ in files]
+    if key in h and h[key].get("sizes") == sizes and "raw.githubusercontent.com" in h[key]["mp4"]:
+        return h[key]
     sha = None
-    for local, name in ((p("out", tid + ".mp4"), tid + ".mp4"), (p("out", tid + "_cover.jpg"), tid + "_cover.jpg")):
+    for local, name in files:
         if not os.path.exists(local):
             raise Fatal("%s missing (run qa first)" % local)
         rc, cur, _ = gh_api(["repos/%s/contents/%s?ref=%s" % (repo, name, br)])
@@ -1045,10 +1131,10 @@ def host(tid):
             raise Fatal("read %s@%s: %s" % (repo, br, err.strip()[:300]))
         sha = res["sha"]
     base = "https://raw.githubusercontent.com/%s/%s/" % (repo, sha)
-    h[tid] = {"mp4": base + tid + ".mp4", "cover": base + tid + "_cover.jpg", "commit": sha, "sizes": sizes, "t": now()}
+    h[key] = {"mp4": base + key + ".mp4", "cover": base + tid + "_cover.jpg", "commit": sha, "sizes": sizes, "t": now()}
     os.makedirs(p("state"), exist_ok=True)
     json.dump(h, open(p("state", "hosted.json"), "w"), indent=1)
-    return h[tid]
+    return h[key]
 
 
 def slot_times(start, days):
@@ -1140,18 +1226,36 @@ def plan(start, days, posts_file=None):
     return {"fills": fills, "gaps": gaps, "short": short, "notes": notes, "pool_left": [r["id"] for r in pool], "rows": rows}
 
 
-def payload(tid, at, missing=None):
-    """One create_social_post call for a reel on all four accounts (or only the missing ones). Media URLs still go through upload_social_media."""
+PLATFORM = {"instagram": "ig", "youtube": "yt", "threads": "threads", "pinterest": "pinterest"}
+
+
+def payload(tid, at, missing=None, cut=None, keys=None):
+    """One create_social_post call for a reel on the given accounts (default all four, or only the missing ones). Media URLs still go through
+    upload_social_media. cut="ig" posts the Instagram cut."""
     t = topic(tid)
-    h = host(tid)
+    h = host(tid, cut)
     acc = SCHED["accounts"]
-    ids = [acc[k] for k in (missing or acc)]
-    out = {"reel": tid, "publishAt": at, "integrationIds": ids, "content": caption(t),
+    keys = keys or missing or list(acc)
+    ids = [acc[k] for k in keys]
+    out = {"reel": tid, "cut": cut or "full", "platforms": ",".join(PLATFORM[k] for k in keys), "publishAt": at, "integrationIds": ids, "content": caption(t, cut),
            "upload": {"video": h["mp4"], "thumbnail": h["cover"]},
            "media": [{"type": "video", "url": "<upload_social_media(upload.video)>", "thumbnail": "<upload_social_media(upload.thumbnail)>"}]}
     if acc["pinterest"] in ids:
         out["settings"] = {acc["pinterest"]: {"boardId": SCHED["pinterest_board"]}}
     return out
+
+
+def payloads(tid, at, missing=None):
+    """The create_social_post calls of one slot (SLA-1685): Instagram gets the IG cut in its own group when it passed QA, the other accounts
+    the full reel; otherwise one group with the full reel. Returns (payloads, note)."""
+    keys = list(missing or SCHED["accounts"])
+    ig = qa_ig(tid) if "instagram" in keys else None
+    if ig is None:
+        return [payload(tid, at, keys=keys)], None
+    if ig:
+        return [payload(tid, at, keys=keys)], "%s: IG cut not used (%s); Instagram gets the full reel" % (tid, "; ".join(ig))
+    rest = [k for k in keys if k != "instagram"]
+    return [payload(tid, at, cut="ig", keys=["instagram"])] + ([payload(tid, at, keys=rest)] if rest else []), None
 
 
 def supply(start, days=3):

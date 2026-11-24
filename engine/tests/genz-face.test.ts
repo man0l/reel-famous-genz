@@ -170,3 +170,58 @@ test("self-diagnosis beats are strict: unknown faces, a third A/B face, a number
   assert.ok(bad(c, (s) => s.beats.at(-1).pills.push("7")).includes("E1"));
   assert.ok(bad(e, (s) => (s.beats[2].title = "a solid 8/10")).includes("E7"));
 });
+
+test("loop tail (SLA-1685): adds its frames after the end hold and moves nothing else; 0.3-2 s or E9", () => {
+  const s = parseScript(load("ok-B-keoghan.json"));
+  const vo = s.beats.map((b) => b.vo);
+  const a = plan(s.durations, vo);
+  const b = plan(s.durations, vo, undefined, 0.8);
+  assert.equal(a.tl.frames, a.tl.body, "no tail without `loop`");
+  assert.equal(b.tl.body, a.tl.frames);
+  assert.equal(b.tl.frames - b.tl.body, 24);
+  assert.deepEqual(b.tl.beats, a.tl.beats);
+  assert.deepEqual(b.cutTimes, a.cutTimes);
+  assert.equal(b.cutsPerMin, a.cutsPerMin, "the silent tail does not dilute the cut rate");
+  assert.ok(Math.abs(b.tl.seconds - a.tl.seconds - 0.8) < 1e-9);
+  assert.deepEqual(rule({ ...clone(load("ok-B-keoghan.json")), loop: 0.8 }), []);
+  assert.deepEqual(rule({ ...clone(load("ok-B-keoghan.json")), loop: 0.2 }), ["E9"]);
+  assert.deepEqual(rule({ ...clone(load("ok-B-keoghan.json")), loop: 2.5 }), ["E9"]);
+});
+
+test("hook (SLA-1685): full-frame layout by default, the old photocard on request, a strict crop", () => {
+  const raw = clone(load("ok-B-keoghan.json"));
+  const hook = parseScript(raw).beats[0];
+  assert.equal(hook.kind, "hook");
+  assert.equal((hook as any).layout, undefined, "no layout = full frame");
+  raw.beats[0].layout = "card";
+  assert.deepEqual(rule(raw), []);
+  raw.beats[0].layout = "full";
+  raw.beats[0].crop = { w: 1500, x: -210, y: 200 };
+  assert.deepEqual(rule(raw), []);
+  raw.beats[0].crop = { w: 1500, x: -210 };
+  assert.deepEqual(rule(raw), ["E1"]);
+  raw.beats[0].crop = { w: 1500, x: -210, y: 200 };
+  raw.beats[0].layout = "split";
+  assert.deepEqual(rule(raw), ["E1"]);
+});
+
+test("the first beat starts at frame 0, so the voice starts at 0.0 s (SLA-1685)", () => {
+  for (const n of okNames) {
+    const s = parseScript(load(n));
+    const tl = plan(s.durations, s.beats.map((b) => b.vo)).tl;
+    assert.equal(tl.beats[0].from, 0);
+    assert.equal(tl.beats[0].off, 0);
+  }
+});
+
+test("end hold (SLA-1685): the IG cut's shorter CTA hold moves only the last beat; 0.3-3 s", () => {
+  const s = parseScript(load("ok-B-keoghan.json"));
+  const vo = s.beats.map((b) => b.vo);
+  const a = plan(s.durations, vo, undefined, 0.8);
+  const b = plan(s.durations, vo, undefined, 0.8, 0.6);
+  const n = s.beats.length - 1;
+  assert.deepEqual(b.tl.beats.slice(0, n), a.tl.beats.slice(0, n));
+  assert.equal(a.tl.frames - b.tl.frames, 18);
+  assert.deepEqual(rule({ ...clone(load("ok-B-keoghan.json")), end_hold: 0.6, cut: "ig", platform: "ig" }), []);
+  assert.deepEqual(rule({ ...clone(load("ok-B-keoghan.json")), end_hold: 0.1 }), ["E1"]);
+});
