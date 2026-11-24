@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { AbsoluteFill, Audio, Img, interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
+import { AbsoluteFill, Audio, Freeze, Img, interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
 import { assetSrc, pad2 } from "./util.ts";
 import { Fonts } from "./components/Fonts.tsx";
 import { Stage } from "./components/Stage.tsx";
@@ -18,6 +18,9 @@ const planOf = (s: Script): Plan =>
   plan(
     s.durations,
     s.beats.map((b) => b.vo),
+    undefined,
+    s.loop ?? 0,
+    s.end_hold,
   );
 
 /** The cut a callout pops on: its explicit chunk, else the beat's k-th cut (so pops are counted cuts). */
@@ -122,6 +125,14 @@ export const ReelView: React.FC<{ script: Script; audio?: boolean }> = ({ script
           <BeatView script={script} index={i} bp={pl.beats[i]} />
         </Sequence>
       ))}
+      {pl.tl.frames > pl.tl.body ? (
+        // SLA-1685: silent loop tail, frame 0 of the hook held after the CTA so the replay reads as one loop (facemetric's SLA-1547 pattern)
+        <Sequence from={pl.tl.body} durationInFrames={pl.tl.frames - pl.tl.body} name="loop tail" layout="none">
+          <Freeze frame={0}>
+            <BeatView script={script} index={0} bp={pl.beats[0]} />
+          </Freeze>
+        </Sequence>
+      ) : null}
       {audio
         ? pl.tl.beats.map((time, i) => (
             <Sequence key={`a${i}`} from={time.from} durationInFrames={Math.round(time.span * FPS)} name={`vo ${pad2(i)}`} layout="none">

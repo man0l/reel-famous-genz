@@ -9,6 +9,21 @@
     "FILE"
   ],
   "footer": "AI-edited images",
+  "$loop_s": "SLA-1685: seconds of silent loop tail after the CTA (frame 0 held, so the replay reads as one loop); lint keeps it in 0.3-2 s",
+  "loop_s": 0.8,
+  "ig_cut": {
+    "$comment": "SLA-1685: Instagram gets its own cut, 4 callouts and 20-30 s (completion rate); YouTube, Threads and Pinterest keep the full reel. A topic's `ig_features` (0-based feature indices) picks the four, else the first four, else the four shortest when the first four run past 30 s. A reel with 4 features, or an IG cut that fails QA, posts the full reel on Instagram too. pad_s / end_hold_s mirror engine theme.ts.",
+    "features": 4,
+    "seconds": [
+      20,
+      30
+    ],
+    "pad_s": 0.35,
+    "end_hold_s": 1.2,
+    "$ig_end_hold_s": "the IG cut holds the CTA this long (the loop tail carries the end); selection aims under seconds[1] - margin_s so the render passes QA",
+    "ig_end_hold_s": 0.6,
+    "margin_s": 0.3
+  },
   "audio": {
     "voice": "charlie",
     "model": "elevenlabs/eleven-flash-v2.5",

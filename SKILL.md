@@ -12,6 +12,7 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 ## Board rules (short version; full list in decisions.md)
 - Hooks are @glowupmenclub's **word for word**; only `{slots}` change (`pack/hooks.json`). `lint` rejects anything else.
 - Beat order: hook with the name → "So let's break down what his face actually has." → 4-6 features (one callout each) → game card (OVR + EYE JAW SYM NOS BRW SKN) → "Comment who I should break down next."
+- **Retention packaging (board, SLA-1682 / SLA-1685, 24 Nov 2026):** the hook shows the face full-frame from frame 0 with the hook text burned in large (nothing animates in) and the voice starts at 0.0 s; every reel ends with a 0.8 s silent loop tail (frame 0 held after the CTA, `loop`, lint 0.3-2.0 s); Instagram gets its own 4-callout cut of 20-30 s, the other three accounts the full reel. The spoken hooks stay word for word.
 - Facial features only. No boy group, idol position, concept, debut or trainee framing; no score out of 10; no app or link; no looksmaxxing words; every spoken sentence under 14 words.
 - Wikimedia Commons photos only, with the author and licence credited on screen, plus "AI-edited images".
 - **Posting is automatic since 22 Nov 2026** (board: "an automatic routine like reel-factory's, scheduling 1 day ahead, self-healing"). A reel goes out once it passes `rfg.sh qa`; board-approved reels (`rfg.sh approve <id>`) go first. Every reel is on the calendar a day before it posts, so the board can veto it (`status=dropped`, delete its queued group). Post logging: `rfg.sh posted`.
@@ -44,16 +45,16 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 | `script <id>` | build `work/<id>/script.json` and lint it against the board rules; logs the hook in hooks.jsonl |
 | `lint <id>` | lint only |
 | `tts <id> [--force]` | ElevenLabs `charlie` at 0.95 via OpenRouter, one clip per beat: about $0.01 |
-| `render <id> [--wait S]` | build the job and render it on Cloudflare (`reel-remotion` Worker). Submits, or checks the job already submitted, then returns: exit 0 = `out/<id>.mp4` written (`rendered`), exit 75 = still queued/rendering (run it again on the next wake), exit 2 = failed (run it again to resubmit) |
+| `render <id> [--wait S] [--force]` | build the jobs and render them on Cloudflare (`reel-remotion` Worker): the full reel `out/<id>.mp4` and, when the reel has more than 4 features, the Instagram cut `out/<id>_ig.mp4`. Submits, or checks the jobs already submitted, then returns: exit 0 = both written (`rendered`), exit 75 = one still queued/rendering (run it again on the next wake), exit 2 = failed (run it again to resubmit). An MP4 newer than the script and the voice is not rendered again; `--force` renders both again (e.g. after a composition change) |
 | `make <id>` | restyle (if needed) → script → tts → render (submit; exit 75 until Cloudflare is done) |
 | `approve <id>` | the board approved the MP4 |
 | `posted <id> --platform ig\|tt\|yt [--url U]` | log a post (posted.jsonl, subjects.json) |
 | `stats <id> --views N` | add view counts to the post |
 | `learn "<text>"` | append a dated line to learnings.md |
-| `qa <id>` | automated QA: lint, 1080x1920 + audio, 20-60 s and not shorter than the voice, cover `out/<id>_cover.jpg` (frame at 1.2 s, under 2 MB). `rendered` → `qa_ok`; exit 3 on FAIL |
-| `host <id>` | push the MP4 + cover to the `media` branch, print raw.githubusercontent URLs pinned to the commit (skips files already there; a re-rendered MP4 is pushed again). Not jsDelivr: the media branch is over its 50 MB limit and new jsDelivr URLs answer 403 |
+| `qa <id>` | automated QA: lint, 1080x1920 + audio, 20-60 s and not shorter than the voice, cover `out/<id>_cover.jpg` (frame at 1.2 s, under 2 MB). `rendered` → `qa_ok`; exit 3 on FAIL. Then the IG cut: 1080x1920 + audio, 20-30 s (`IG cut PASS/FAIL`; a FAIL never blocks the reel, Instagram then gets the full reel) |
+| `host <id>` | push the MP4 + cover to the `media` branch, print raw.githubusercontent URLs pinned to the commit (skips files already there; a re-rendered MP4 is pushed again), and the IG cut when it passed QA. Not jsDelivr: the media branch is over its 50 MB limit and new jsDelivr URLs answer 403 |
 | `plan [--start D] [--days N] [--posts F]` | slots (13:00 and 20:00 UTC) in the window: `FILL` (reel for an empty slot; board-approved first, 30-day subject cooldown), `GAP` (a reel missing some of the four accounts), `SHORT` (nothing to post), and with a saved `list_social_posts` file `ERROR`, `MISSING` (group deleted) and `MIXING` (facemetric media on these accounts). Default: tomorrow, 1 day |
-| `schedule [same args]` | `plan`, then QA + host each FILL and write `state/schedule-<date>.json`: one `create_social_post` payload per reel (all four accounts, Pinterest board, caption) |
+| `schedule [same args]` | `plan`, then QA + host each FILL and write `state/schedule-<date>.json`: one `create_social_post` payload per reel (all four accounts, Pinterest board, caption), or two when the IG cut passed QA: Instagram with `<id>_ig.mp4`, YouTube/Threads/Pinterest with the full reel, same `publishAt`. Each payload says its `cut` and `platforms` |
 | `scheduled <id> --at ISO --group G [--platforms ig,yt,threads,pinterest] [--media U --cover U]` | record a created group in scheduled.jsonl; status → `scheduled` |
 | `supply [--start D] [--days 3]` | open slots vs postable reels, the next topics to make, templates still blocked; last line `SUPPLY OK` or `SUPPLY WARN` |
 
@@ -64,7 +65,8 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
    - **D this or that** (`compare`, 2-4 rounds): the topic sets `sides: {a: face A, b: face B}` (a feature may override with its own `sides: [A, B]`), optional `labels`, `chips`, `crops`; the topic card shows both faces with A/B.
    - CTA per kind (`pack/hooks.json` → `cta`): E "Comment which one you passed.", C "Comment your type.", D "Comment A or B." Celebrity reels keep "Comment who I should break down next."
 2. Find a frontal Commons photo (CC BY, CC BY-SA, CC0 or PD), and put the `File:...` title in `photo.commons_file`.
-3. Features: `region` is one of hair, brows, eyes, eye_colour, nose, cheekbones, lips, jaw, chin, skin. The default anchors fit a cutout whose face sits like Keoghan's. **After `restyle`, look at the cutout** and set `at` (image fractions) and `crop.y` per feature when the face sits higher or lower. Chalamet (RSG0002) is the worked example.
+3. Features: `region` is one of hair, brows, eyes, eye_colour, nose, cheekbones, lips, jaw, chin, skin. The default anchors fit a cutout whose face sits like Keoghan's. **After `restyle`, look at the cutout** and set `at` (image fractions) and `crop.y` per feature when the face sits higher or lower. Chalamet (RSG0002) is the worked example. The full-frame hook places the cutout at width 1400, left -160, top 250 (frame pixels); set `hook_crop` {w, x, y} when the face sits too high or low under the headline.
+   Optional `ig_features`: the 4 feature indices (0-based) the Instagram cut keeps. Without it the cut keeps the first 4, or the 4 shortest when the first 4 would run past ~29.7 s.
 4. Before a full render, render one still per beat to check the layout: copy `out/<id>/job`, set `still_composition: "genz-face"` and `still_frame: N` in its job.json, and run `engine/render.sh <job> <out.jpg>`. It takes about 15 s a frame.
 
 ## Rendering (Cloudflare only, SLA-1668)
@@ -80,7 +82,8 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 
 ## Posting (all four jenny accounts)
 - Accounts and slots live in `pack/config.json` → `schedule`: Instagram `jennymaxxer`, YouTube `looksmaxxers-d1q`, Threads `jennymaxxer`, Pinterest `jennymaxxing` (board `1088323134893667526`), 13:00 and 20:00 UTC.
-- The skill cannot call Slashloop. For each payload of `schedule`: `upload_social_media` on `upload.video` and `upload.thumbnail`, put the two returned URLs in `media[0].url` / `media[0].thumbnail`, `create_social_post` with `integrationIds`, `content`, `media`, `publishAt`, `settings` exactly as written, then `rfg.sh scheduled <id> --at <publishAt> --group <groupId>`.
+- The skill cannot call Slashloop. For each payload of `schedule`: `upload_social_media` on `upload.video` and `upload.thumbnail`, put the two returned URLs in `media[0].url` / `media[0].thumbnail`, `create_social_post` with `integrationIds`, `content`, `media`, `publishAt`, `settings` exactly as written, then `rfg.sh scheduled <id> --at <publishAt> --group <groupId> --platforms <payload.platforms> --media <upload.video>`. A reel with an IG cut has two payloads (two groups) in the same slot.
+- **Instagram trial reels: Slashloop does not expose them** (checked 24 Nov 2026, SLA-1685: `create_social_post` documents no trial option; its only Instagram setting is the cover frame). Until it does, trials are the board's: 2 reels a week posted from the Instagram app as trial reels.
 - Caption = hook / line 2 + card + CTA / photo credit + "AI-edited images" / 5 hashtags. Line 2 and the hashtags come from the topic's `caption` and `tags` when set (write them by hand), else from the feature labels.
 - Templates C, D and E have their layouts (SLA-1653) but stay in `schedule.blocked_templates` until the board approves the first E and C reels (RSG0010, RSG0007) on SLA-1643. Remove a template from the list on board direction only.
 

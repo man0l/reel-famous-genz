@@ -287,5 +287,66 @@ class Schedule(Base):
         self.assertLessEqual(len(c[3].split()), 5)
 
 
+class Retention(Base):
+    """SLA-1685: the loop tail, the full-frame hook crop and the Instagram cut (4 callouts, 20-30 s)."""
+
+    def test_loop_tail_and_hook_crop(self):
+        t = seed_topic("RSG0001")
+        s = L.build_script(t)
+        self.assertEqual(s["loop"], 0.8)
+        self.assertNotIn("crop", s["beats"][0])
+        self.assertEqual(L.lint_script(s, t), [])
+        for bad in (0.2, 2.5):
+            self.assertTrue(any(x.startswith("loop:") for x in L.lint_script(dict(s, loop=bad), t)), bad)
+        s = L.build_script(dict(t, hook_crop={"w": 1500, "x": -210, "y": 200}))
+        self.assertEqual(s["beats"][0]["crop"], {"w": 1500, "x": -210, "y": 200})
+
+    def test_cut_seconds_match_the_engine_clock(self):
+        # 3 clips: 2 pads of 0.35, end hold 1.2, loop 0.8 (engine timing.ts)
+        self.assertAlmostEqual(L.cut_seconds([1, 2, 3], 0.8), 6 + 0.7 + 1.2 + 0.8)
+
+    def test_ig_cut_keeps_four_features_and_every_other_beat(self):
+        t = seed_topic("RSG0001")
+        s = L.build_script(t)
+        kinds = [b["kind"] for b in s["beats"]]
+        feats = [i for i, k in enumerate(kinds) if k == "feature"]
+        self.assertEqual(len(feats), 6)
+        durs = [2.0, 2.4] + [3.0] * 6 + [3.2, 2.0]
+        keep = L.ig_keep(s, durs, t)
+        self.assertEqual([kinds[i] for i in keep], ["hook", "narrator"] + ["feature"] * 4 + ["walkout", "cta"])
+        self.assertEqual([i for i in keep if i in feats], feats[:4], "the first four when they fit")
+        self.assertTrue(20 <= L.cut_seconds([durs[i] for i in keep], s["loop"], L.IG["ig_end_hold_s"]) <= 30)
+        # the first four run long: the four shortest, in order
+        long = [2.0, 2.4, 6.0, 6.0, 2.5, 2.5, 2.6, 2.6, 3.2, 2.0]
+        keep = L.ig_keep(s, long, t)
+        self.assertEqual([i for i in keep if i in feats], [4, 5, 6, 7])
+        # the topic picks
+        keep = L.ig_keep(s, durs, dict(t, ig_features=[0, 2, 3, 5]))
+        self.assertEqual([i for i in keep if i in feats], [feats[0], feats[2], feats[3], feats[5]])
+        with self.assertRaises(L.Fatal):
+            L.ig_keep(s, durs, dict(t, ig_features=[0, 1, 9, 2]))
+        # four features: no IG cut
+        t4 = dict(t, features=t["features"][:4])
+        s4 = L.build_script(t4)
+        self.assertIsNone(L.ig_keep(s4, [2.0] * len(s4["beats"]), t4))
+
+    def test_ig_caption_names_only_the_kept_features(self):
+        t = seed_topic("RSG0001")
+        wd = L.p("work", "RSG0001")
+        os.makedirs(wd, exist_ok=True)
+        s = L.build_script(t)
+        json.dump(s, open(os.path.join(wd, "script.json"), "w"))
+        json.dump([2.0, 2.4] + [3.0] * 6 + [3.2, 2.0], open(os.path.join(wd, "durations.json"), "w"))
+        L.save_topic(t)
+        try:
+            full, ig = L.caption(t).split("\n")[1], L.caption(t, "ig").split("\n")[1]
+            labels = [f["label"].lower() for f in t["features"]]
+            self.assertIn(labels[5].split()[0], full)
+            self.assertNotIn(labels[5], ig)
+            self.assertIn(labels[0].split()[0], ig.lower())
+        finally:
+            shutil.rmtree(wd)
+
+
 if __name__ == "__main__":
     unittest.main()

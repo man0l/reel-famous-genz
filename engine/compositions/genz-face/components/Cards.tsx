@@ -1,7 +1,7 @@
 import React from "react";
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { assetSrc } from "../util.ts";
-import { FONT, GAME, HOLO, LANES, PETAL, PHOTOCARD } from "../theme.ts";
+import { FONT, GAME, HOLO, HOOK_FULL, LANES, PETAL, PHOTOCARD } from "../theme.ts";
 import { Em } from "./Text.tsx";
 import type { Beat } from "../schema.ts";
 
@@ -9,8 +9,43 @@ type Of<K extends Beat["kind"]> = Extract<Beat, { kind: K }>;
 
 const shadowText = "0 8px 30px rgba(0,0,0,.7), 0 0 60px rgba(201,184,255,.35)";
 
-/** Hook: headline (Noto Sans KR 900 100 px), the "which position / concept" sub line, and the holo photocard with the painted cutout and name strip. */
-export const HookView: React.FC<{ b: Of<"hook">; lane: "A" | "B"; src: string; hangul: boolean; since: number }> = ({ b, lane, src, hangul, since }) => {
+/**
+ * Hook, full layout (SLA-1685, default): the painted cutout fills the frame and the headline (Noto Sans KR 900 112 px) is burned in over a dark
+ * top fade. Nothing enters: frame 0 already shows the face and the whole hook, so the first second carries it. A slow push-in keeps it alive.
+ */
+const HookFull: React.FC<{ b: Of<"hook">; lane: "A" | "B"; src: string; hangul: boolean; since: number }> = ({ b, lane, src, hangul, since }) => {
+  const c = b.crop ?? HOOK_FULL.crop;
+  // as large as the longest line allows on one line (an uppercase Noto Sans KR 900 glyph is about .64 em wide), never wrapped
+  const longest = Math.max(...b.head.map((l) => l.replace(/\*/g, "").length));
+  const size = Math.min(HOOK_FULL.head, Math.floor(980 / (longest * 0.64)));
+  const subTop = 190 + b.head.length * size * 0.98 + 30;
+  return (
+    <>
+      <Img src={assetSrc(src)} style={{ position: "absolute", left: c.x, top: c.y, width: c.w, zIndex: 1, transform: `scale(${1 + 0.0012 * since})`, transformOrigin: "50% 30%" }} />
+      <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: HOOK_FULL.fade, zIndex: 2, background: "linear-gradient(180deg, rgba(13,7,24,.92) 0%, rgba(13,7,24,.8) 45%, rgba(13,7,24,0) 100%)" }} />
+      <h1 style={{ position: "absolute", left: 50, right: 50, top: 190, margin: 0, font: `900 ${size}px/.98 ${FONT.kr}`, letterSpacing: "-.02em", whiteSpace: "nowrap", textShadow: shadowText, zIndex: 3 }}>
+        {b.head.map((l, i) => (
+          <React.Fragment key={i}>
+            {i ? <br /> : null}
+            <Em text={l} lane={lane} />
+          </React.Fragment>
+        ))}
+      </h1>
+      {b.sub ? (
+        <div style={{ position: "absolute", left: 50, right: 50, top: subTop, font: `600 44px/1.2 ${FONT.kr}`, color: "rgba(255,255,255,.9)", textShadow: shadowText, zIndex: 3 }}>
+          {b.sub}
+          {hangul && b.sub_ko ? <span style={{ color: PETAL, fontWeight: 700, marginLeft: 10 }}>{b.sub_ko}</span> : null}
+        </div>
+      ) : null}
+    </>
+  );
+};
+
+/** Hook: the full-frame face (default) or, with `layout: "card"`, the headline, sub line and holo photocard with the painted cutout and name strip. */
+export const HookView: React.FC<{ b: Of<"hook">; lane: "A" | "B"; src: string; hangul: boolean; since: number }> = (props) =>
+  (props.b.layout ?? "full") === "full" ? <HookFull {...props} /> : <HookCard {...props} />;
+
+const HookCard: React.FC<{ b: Of<"hook">; lane: "A" | "B"; src: string; hangul: boolean; since: number }> = ({ b, lane, src, hangul, since }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const subTop = 200 + b.head.length * 98 + 34;

@@ -71,6 +71,10 @@ export const NARRATOR = { full: 1080, side: 760, sideRight: -20, punch: 0.04, pu
 /** Photocard (hook): the holo frame around the painted cutout. */
 export const PHOTOCARD = { width: 740, left: 170, top: 560, innerH: 880, border: 12, radius: 40 } as const;
 
+/** SLA-1685: full-frame hook. The painted cutout fills the frame from frame 0 (crop = width / left / top in frame pixels, a topic's `hook_crop`
+ * wins), the headline is burned in large over a dark top fade, and nothing animates in: frame 0 is the finished layout. */
+export const HOOK_FULL = { crop: { w: 1400, x: -160, y: 250 }, head: 112, fade: 980 } as const;
+
 /** Self-diagnosis layouts (C, D, E): the demo card of a check (crop = image width / left / top in card pixels), the topic card and the A/B panels. */
 export const SELFTEST = {
   demoW: 380,
@@ -89,6 +93,8 @@ export const MIN_CUT_GAP_S = 1.4;
 export const XFADE_S = 0.25;
 export const PAD_S = 0.35;
 export const END_HOLD_S = 1.2;
+/** SLA-1685: silent loop tail after the end hold (frame 0 held, the facemetric pattern): allowed range of the script's `loop`. */
+export const LOOP_S = { min: 0.3, max: 2 } as const;
 
 export const MAX_FEATURES = 6;
 /** BUILD-BRIEF section 6: lines under 14 words. */
