@@ -1,5 +1,5 @@
 import React from "react";
-import { FONT, HOT_PILL, LANES, PETAL } from "../theme.ts";
+import { FONT, HOT_PILL, LANES, PETAL, PINK, TEASE } from "../theme.ts";
 import { runs } from "../geometry.ts";
 import { bare, wordWindows } from "../timing.ts";
 
@@ -39,3 +39,18 @@ export const Caption: React.FC<{ chunk: string; hot?: string[]; t: number; from:
     </div>
   );
 };
+
+/** SLA-1685 (board, 24 Nov): the small tease row at the top ("wait for #4…" plus the "2/4" chip of the feature on screen); no entrance, so frame 0 is the finished layout. */
+export const TeaseRow: React.FC<{ text: string; line: boolean; n: number; of: number }> = ({ text, line, n, of }) =>
+  line || n ? (
+    <div style={{ position: "absolute", left: 0, right: 0, top: TEASE.top, display: "flex", justifyContent: "center", alignItems: "center", gap: TEASE.gap, zIndex: 7 }}>
+      {line ? (
+        <span style={{ font: `700 ${TEASE.size}px/1.2 ${FONT.kr}`, color: "#fff", background: "rgba(0,0,0,.55)", padding: "6px 22px", borderRadius: 16, textShadow: "0 2px 10px rgba(0,0,0,.8)" }}>{text}</span>
+      ) : null}
+      {n ? (
+        <span style={{ font: `700 ${TEASE.chip}px/1.2 ${FONT.tag}`, color: "#fff", background: n === of ? PINK : "rgba(255,255,255,.18)", border: "2px solid rgba(255,255,255,.55)", padding: "4px 18px", borderRadius: 999, boxShadow: n === of ? "0 0 30px rgba(255,79,163,.6)" : "none", fontVariantNumeric: "tabular-nums" }}>
+          {n}/{of}
+        </span>
+      ) : null}
+    </div>
+  ) : null;

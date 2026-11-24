@@ -117,6 +117,10 @@ export const AXEND = {
   faceFrom: 1.3,
 } as const;
 
+/** SLA-1685 (board, 24 Nov): the on-screen tease, kept small at the top so the face stays the hook: the line and the feature counter chip
+ * share one centred row (`top` in frame pixels); the last chip ("4/4") turns pink. */
+export const TEASE = { top: 168, size: 42, chip: 38, gap: 16 } as const;
+
 /** SLA-1685: silent loop tail after the end hold (frame 0 held, the facemetric pattern): allowed range of the script's `loop`. */
 export const LOOP_S = { min: 0.3, max: 2 } as const;
 
