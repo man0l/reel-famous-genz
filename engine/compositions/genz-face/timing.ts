@@ -152,14 +152,14 @@ export function framesSinceCut(windows: readonly [number, number][], cuts: reado
   return Math.max(0, Math.round((t - start) * fps));
 }
 
-/** SLA-1685 tease: what the top row shows at `frame`: the line until the first payoff beat (game card, Axend card, verdict or CTA) and
- * in the loop tail (frame 0 held), and the feature's place ("2/4") on a feature beat. A beat counts from its first frame. */
+/** SLA-1685 tease: what the top row shows at `frame`: the line during the hook only (board, 24 Nov: "hook only", like @glowupmenclub's
+ * caption, which is up for the first seconds) and in the loop tail (frame 0 held), and the feature's place ("2/4") on a feature beat.
+ * A beat counts from its first frame. */
 export function teaseAt(kinds: readonly string[], tl: Timeline, frame: number): { line: boolean; n: number; of: number } {
   const of = kinds.filter((k) => k === "feature").length;
   const f = frame >= tl.body ? 0 : frame;
   let i = 0;
   while (i + 1 < tl.beats.length && tl.beats[i + 1].from <= f) i++;
-  const payoff = kinds.findIndex((k) => k === "walkout" || k === "axend" || k === "verdict" || k === "cta");
   const n = kinds[i] === "feature" ? kinds.slice(0, i + 1).filter((k) => k === "feature").length : 0;
-  return { line: payoff < 0 || i < payoff, n, of };
+  return { line: kinds[i] === "hook", n, of };
 }

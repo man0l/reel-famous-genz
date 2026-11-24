@@ -239,13 +239,14 @@ test("axend beat (SLA-1685): needs its card and face assets; the card counts as 
   assert.deepEqual(beatAssetKeys(r.ok ? r.script.beats.at(-1)! : (null as never)), [img, "axend_card"]);
 });
 
-test("tease (SLA-1685): the line until the payoff card and in the loop tail, a 1/4 … 4/4 chip on each feature, strict shape", async () => {
+test("tease (SLA-1685): the line during the hook only and in the loop tail, a 1/4 … 4/4 chip on each feature, strict shape", async () => {
   const { teaseAt, timeline } = await import("../compositions/genz-face/timing.ts");
   const kinds = ["hook", "feature", "feature", "feature", "feature", "axend"];
   const tl = timeline([2, 3, 3, 3, 3, 3], 30, 0.8);
   assert.deepEqual(teaseAt(kinds, tl, 0), { line: true, n: 0, of: 4 });
-  assert.deepEqual(teaseAt(kinds, tl, tl.beats[1].from), { line: true, n: 1, of: 4 });
-  assert.deepEqual(teaseAt(kinds, tl, tl.beats[4].from + 5), { line: true, n: 4, of: 4 });
+  assert.deepEqual(teaseAt(kinds, tl, tl.beats[1].from - 1), { line: true, n: 0, of: 4 }, "up to the last hook frame");
+  assert.deepEqual(teaseAt(kinds, tl, tl.beats[1].from), { line: false, n: 1, of: 4 }, "gone on the first feature");
+  assert.deepEqual(teaseAt(kinds, tl, tl.beats[4].from + 5), { line: false, n: 4, of: 4 });
   assert.deepEqual(teaseAt(kinds, tl, tl.beats[5].from), { line: false, n: 0, of: 4 });
   assert.deepEqual(teaseAt(kinds, tl, tl.body + 3), teaseAt(kinds, tl, 0), "the loop tail holds frame 0");
   const s = { ...clone(load("ok-B-keoghan.json")), tease: { text: "wait for #4…" } };
