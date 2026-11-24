@@ -10,7 +10,7 @@ import { AxendView, BridgeText, CtaView, HookView, PackView, VerdictView, Walkou
 import { CheckView, TopicView, TypeHeader, VersusView } from "./components/SelfTest.tsx";
 import { cutRect } from "./geometry.ts";
 import { parseScript, type Beat, type Script } from "./schema.ts";
-import { FPS, HARD_CUT } from "./theme.ts";
+import { FPS, HARD_CUT, HOST, NARRATOR } from "./theme.ts";
 import type { Pose } from "./theme.ts";
 import { captionAt, fadeIn, framesSinceCut, plan, stepAt, teaseAt, type BeatPlan, type Plan } from "./timing.ts";
 
@@ -72,7 +72,7 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
       ) : null}
       {beat.kind === "versus" ? <VersusView b={beat} srcs={srcs as [string, string]} ratios={ratios as [number, number]} since={enter} /> : null}
       {showNarrator ? <Narrator src={sprite} mode={side ? "side" : "full"} since={since} enter={enter} /> : null}
-      <Caption chunk={parts[j] ?? ""} hot={beat.hot} t={t} from={from} to={to} onChar={onChar} bottom={beat.kind === "axend" ? 150 : beat.kind === "hook" || beat.kind === "pack" || (beat.kind === "topic" && imgs.length) ? 210 : 430} gamecard={lens === "gamecard"} />
+      <Caption chunk={parts[j] ?? ""} hot={beat.hot} t={t} from={from} to={to} onChar={onChar} right={script.host && hostKind(beat.kind) && beat.kind !== "feature" ? HOST.captionRight : undefined} bottom={beat.kind === "axend" ? 150 : beat.kind === "hook" || beat.kind === "pack" || (beat.kind === "topic" && imgs.length) ? 210 : 430} gamecard={lens === "gamecard"} />
     </AbsoluteFill>
   );
 };
@@ -94,6 +94,33 @@ const FeatureView: React.FC<{ script: Script; beat: Extract<Beat, { kind: "featu
         return sinceC >= 0 ? <CalloutView key={k} c={c} rect={rect} since={sinceC} hangul={script.hangul} /> : null;
       })}
     </>
+  );
+};
+
+/** SLA-1685: the beats the host stands on. */
+const hostKind = (k: string): boolean => k === "hook" || k === "feature" || k === "axend";
+
+/** SLA-1685 (board, 24 Nov): the narrator as the host, bottom-right, one layer over every hook / feature / Axend beat (so he does not re-enter
+ * on each cut). Frame 0 is the finished layout (no entrance), so the loop tail matches; the pose swaps and punches on every beat. */
+const Host: React.FC<{ script: Script; pl: Plan }> = ({ script, pl }) => {
+  const frame = useCurrentFrame();
+  const f = frame >= pl.tl.body ? 0 : frame;
+  let i = 0;
+  while (i + 1 < pl.tl.beats.length && pl.tl.beats[i + 1].from <= f) i++;
+  const kind = script.beats[i].kind;
+  if (!hostKind(kind)) return null;
+  const nth = script.beats.slice(0, i).filter((b) => b.kind === "feature").length;
+  const pose = (kind === "feature" ? HOST.poses.feature[nth % HOST.poses.feature.length] : HOST.poses[kind as "hook" | "axend"]) as Pose;
+  const src = spriteFor(script.sprites, script.assets, pose);
+  if (!src) return null;
+  const since = f - pl.tl.beats[i].from;
+  const punch = i ? interpolate(since, [0, NARRATOR.punchFrames], [NARRATOR.punch * 2, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 0;
+  const float = Math.sin(f / 18) * 4;
+  return (
+    <Img
+      src={assetSrc(src)}
+      style={{ position: "absolute", bottom: 0, right: HOST.right, height: kind === "axend" ? HOST.axendH : HOST.h, width: "auto", zIndex: 5, transformOrigin: "50% 100%", transform: `translateY(${float}px) scale(${1 + punch})`, filter: "drop-shadow(0 16px 30px rgba(0,0,0,.65))" }}
+    />
   );
 };
 
@@ -158,6 +185,7 @@ export const ReelView: React.FC<{ script: Script; audio?: boolean }> = ({ script
           </Freeze>
         </Sequence>
       ) : null}
+      {script.host ? <Host script={script} pl={pl} /> : null}
       {script.tease ? <Tease script={script} pl={pl} /> : null}
       {audio
         ? pl.tl.beats.map((time, i) => (

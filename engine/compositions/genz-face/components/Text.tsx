@@ -18,12 +18,12 @@ export const Em: React.FC<{ text: string; lane: "A" | "B" }> = ({ text, lane }) 
  * Word-by-word caption of one chunk: Noto Sans KR 800 54 px, spoken words at full strength, the rest dimmed, hot words in the pink pill.
  * `t` is the beat time in seconds, [from, to) the chunk's window.
  */
-export const Caption: React.FC<{ chunk: string; hot?: string[]; t: number; from: number; to: number; onChar?: boolean; bottom?: number; gamecard?: boolean }> = ({ chunk, hot = [], t, from, to, onChar, bottom = 430, gamecard }) => {
+export const Caption: React.FC<{ chunk: string; hot?: string[]; t: number; from: number; to: number; onChar?: boolean; bottom?: number; right?: number; gamecard?: boolean }> = ({ chunk, hot = [], t, from, to, onChar, bottom = 430, right = 80, gamecard }) => {
   const ws = chunk.split(/\s+/).filter(Boolean);
   const win = wordWindows(ws, from, to);
   const hotSet = new Set(hot.map(bare));
   return (
-    <div style={{ position: "absolute", left: 80, right: 80, bottom, textAlign: "center", font: `800 54px/1.2 ${FONT.kr}`, letterSpacing: "-.01em", textShadow: "0 4px 16px rgba(0,0,0,.9), 0 0 30px rgba(255,79,163,.35)", zIndex: 6 }}>
+    <div style={{ position: "absolute", left: 80, right, bottom, textAlign: "center", font: `800 54px/1.2 ${FONT.kr}`, letterSpacing: "-.01em", textShadow: "0 4px 16px rgba(0,0,0,.9), 0 0 30px rgba(255,79,163,.35)", zIndex: 6 }}>
       {ws.map((w, i) => {
         const on = t >= win[i][0] - 0.02;
         const isHot = hotSet.has(bare(w));

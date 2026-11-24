@@ -254,3 +254,10 @@ test("tease (SLA-1685): the line during the hook only and in the loop tail, a 1/
   assert.ok(r.ok && r.script.tease?.counter === true, JSON.stringify(r));
   assert.deepEqual(rule({ ...s, tease: { text: "wait for #4…", size: 3 } }), ["E1"]);
 });
+
+test("host (SLA-1685, board: the narrator is crucial): an optional boolean on the script; strict", () => {
+  const s = load(okNames[0]);
+  assert.equal(parseScript({ ...clone(s), host: true }).host, true);
+  assert.equal(parseScript(clone(s)).host, undefined);
+  assert.ok(rule({ ...clone(s), host: "corner" }).length > 0);
+});
