@@ -442,6 +442,8 @@ def build_script(t):
     missing = [f.get("label") for f in feats if not f.get("vo")]
     if missing:
         raise Fatal("%s: features without a spoken line (run `rfg.sh copy %s` or write `vo`): %s" % (t["id"], t["id"], ", ".join(map(str, missing))))
+    if kind == "celebrity":
+        feats = strongest_last(feats, t)
     sides = sides_of(t)
     if kind == "types":
         for f in feats:
@@ -799,13 +801,48 @@ def ig_keep(script, durs, t=None):
         if len(pick) != n or not all(0 <= k < len(feats) for k in pick):
             raise Fatal("%s: ig_features must be %d feature indices in 0-%d, got %s" % ((t or {}).get("id"), n, len(feats) - 1, pick))
         return keep({feats[k] for k in pick})
-    # an A+ hook asks how the look changed: its last feature (the change) is the answer, so it always stays
-    must = [feats[-1]] if (t or {}).get("template") == "A+" else []
+    # an A+ hook asks how the look changed: its last feature (the change) is the answer, so it always stays; with the tease the last
+    # feature is the strongest (strongest_last), the #4 the line promises
+    must = [feats[-1]] if (t or {}).get("template") == "A+" or tease_of(t, 0) else []
     rest = [i for i in feats if i not in must]
     first_n = keep(set(must + rest[:n - len(must)]))
     if cut_seconds([durs[i] for i in first_n], script.get("loop"), IG["ig_end_hold_s"]) <= IG["seconds"][1] - IG["margin_s"]:
         return first_n
     return keep(set(must + sorted(rest, key=lambda i: durs[i])[:n - len(must)]))
+
+
+def strongest_last(feats, t):
+    """SLA-1685 tease ("wait for #4"): the topic's features with the strongest one moved last, so #4 pays off. The strongest is the topic's
+    `best` (0-based feature index), else the feature whose region has the highest card stat (`tease.stat_of`; the first on a tie). Its
+    "Start with ..." opener becomes "Saved the best for last: ...". No change on an A+ reel (the change stays last), with `ig_features`
+    (the topic picks), without the tease or without a card stat to go by."""
+    if not tease_of(t, 0) or t.get("template") == "A+" or t.get("ig_features") or len(feats) < 2:
+        return feats
+    best = t.get("best")
+    if best is not None:
+        if not 0 <= int(best) < len(feats):
+            raise Fatal("%s: best must be a feature index in 0-%d, got %s" % (t.get("id"), len(feats) - 1, best))
+        best = int(best)
+    else:
+        stats = (t.get("card") or {}).get("stats") or {}
+        stat_of = CFG["tease"].get("stat_of", {})
+        scored = [(stats.get(stat_of.get(f.get("region"), ""), -1), -k) for k, f in enumerate(feats)]
+        top = max(scored)
+        if top[0] < 0:
+            return feats
+        best = -top[1]
+    out = feats[:best] + feats[best + 1:] + [dict(feats[best])]
+    out[-1]["vo"] = re.sub(r"^Start with ", "Saved the best for last: ", out[-1]["vo"])
+    return out
+
+
+def tease_of(t, n):
+    """The script's `tease` for a celebrity reel keeping n features (SLA-1685), or None. A topic's `tease`: false = none, a string = the line."""
+    cfg = CFG.get("tease")
+    own = (t or {}).get("tease")
+    if not cfg or own is False:
+        return None
+    return {"text": fill(own if isinstance(own, str) else cfg["text"], {"n": str(n)}), "counter": bool(cfg.get("counter", True))}
 
 
 def ig_planned(tid):
@@ -828,10 +865,14 @@ def build_job(tid):
     script["durations"] = json.load(open(os.path.join(wd, "durations.json")))
     keep = list(range(len(script["beats"])))
     if script["beats"][0]["kind"] == "hook":
-        keep = ig_keep(script, script["durations"], topic(tid)) or keep
+        t = topic(tid)
+        keep = ig_keep(script, script["durations"], t) or keep
         script["beats"] = [script["beats"][i] for i in keep]
         script["durations"] = [script["durations"][i] for i in keep]
         script.update(cut="ig", end_hold=IG["ig_end_hold_s"])
+        tease = tease_of(t, sum(b["kind"] == "feature" for b in script["beats"]))
+        if tease:
+            script["tease"] = tease
     name = tid
     job = p("out", name, "job")
     shutil.rmtree(job, ignore_errors=True)
@@ -1088,7 +1129,8 @@ def caption(t):
     keep = set(ig_planned(t["id"]) or [])
     if keep:
         fb = [i for i, b in enumerate(s["beats"]) if b["kind"] == "feature"]
-        feats = [f for f, i in zip(t["features"], fb) if i in keep] or feats
+        order = strongest_last([dict(f) for f in t["features"]], t)  # the script's feature order (SLA-1685 tease)
+        feats = [f for f, i in zip(order, fb) if i in keep] or feats
     hook = s["beats"][0]["vo"]
     pr = pron(t)
     if t.get("caption"):

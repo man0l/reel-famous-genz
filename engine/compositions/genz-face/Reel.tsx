@@ -3,7 +3,7 @@ import { AbsoluteFill, Audio, Freeze, Img, interpolate, Sequence, staticFile, us
 import { assetSrc, pad2 } from "./util.ts";
 import { Fonts } from "./components/Fonts.tsx";
 import { Stage } from "./components/Stage.tsx";
-import { Caption } from "./components/Text.tsx";
+import { Caption, TeaseRow } from "./components/Text.tsx";
 import { DEFAULT_POSES, Narrator, spriteFor } from "./components/Narrator.tsx";
 import { CalloutView } from "./components/Callout.tsx";
 import { AxendView, BridgeText, CtaView, HookView, PackView, VerdictView, WalkoutView } from "./components/Cards.tsx";
@@ -12,7 +12,7 @@ import { cutRect } from "./geometry.ts";
 import { parseScript, type Beat, type Script } from "./schema.ts";
 import { FPS, HARD_CUT } from "./theme.ts";
 import type { Pose } from "./theme.ts";
-import { captionAt, fadeIn, framesSinceCut, plan, stepAt, type BeatPlan, type Plan } from "./timing.ts";
+import { captionAt, fadeIn, framesSinceCut, plan, stepAt, teaseAt, type BeatPlan, type Plan } from "./timing.ts";
 
 const planOf = (s: Script): Plan =>
   plan(
@@ -103,6 +103,14 @@ const Flash: React.FC = () => {
   return <AbsoluteFill style={{ background: "#fff", zIndex: 20, opacity: interpolate(frame, [0, HARD_CUT.flashFrames], [HARD_CUT.flash, 0], { extrapolateRight: "clamp" }) }} />;
 };
 
+/** SLA-1685 tease row over every beat (outside the beat Sequences, so it does not fade or flash with them). */
+const Tease: React.FC<{ script: Script; pl: Plan }> = ({ script, pl }) => {
+  const frame = useCurrentFrame();
+  const tease = script.tease!;
+  const st = teaseAt(script.beats.map((b) => b.kind), pl.tl, frame);
+  return <TeaseRow text={tease.text} line={st.line} n={tease.counter ? st.n : 0} of={st.of} />;
+};
+
 const Music: React.FC<{ music: NonNullable<Script["music"]>; total: number }> = ({ music, total }) => {
   const frame = useCurrentFrame();
   const gain = music.volume ?? 0.14;
@@ -150,6 +158,7 @@ export const ReelView: React.FC<{ script: Script; audio?: boolean }> = ({ script
           </Freeze>
         </Sequence>
       ) : null}
+      {script.tease ? <Tease script={script} pl={pl} /> : null}
       {audio
         ? pl.tl.beats.map((time, i) => (
             <Sequence key={`a${i}`} from={time.from} durationInFrames={Math.round(time.span * FPS)} name={`vo ${pad2(i)}`} layout="none">

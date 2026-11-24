@@ -335,7 +335,9 @@ class Retention(Base):
         durs = [2.0] + [3.0] * 6 + [3.2, 2.8]
         keep = L.ig_keep(s, durs, t)
         self.assertEqual([kinds[i] for i in keep], ["hook"] + ["feature"] * 4 + ["walkout", "axend"])
-        self.assertEqual([i for i in keep if i in feats], feats[:4], "the first four when they fit")
+        self.assertEqual([i for i in keep if i in feats], feats[:3] + feats[-1:], "the first three and the last (the tease's #4) when they fit")
+        t = dict(t, tease=False)  # without the tease: the first four
+        self.assertEqual([i for i in L.ig_keep(s, durs, t) if i in feats], feats[:4])
         self.assertTrue(20 <= L.cut_seconds([durs[i] for i in keep], s["loop"], L.IG["ig_end_hold_s"]) <= 30)
         # the first four run long: the four shortest, in order
         long = [2.0, 8.0, 8.0, 2.5, 2.5, 2.6, 2.6, 3.2, 2.8]
@@ -353,6 +355,36 @@ class Retention(Base):
         t4 = dict(t, features=t["features"][:4])
         s4 = L.build_script(t4)
         self.assertIsNone(L.ig_keep(s4, [2.0] * len(s4["beats"]), t4))
+
+    def test_tease_line_and_strongest_feature_last(self):
+        t = seed_topic("RSG0001")
+        stat_of = L.CFG["tease"]["stat_of"]
+        k = next(i for i, f in enumerate(t["features"][:-1]) if f["region"] in stat_of)
+        stats = dict(t["card"]["stats"], **{stat_of[t["features"][k]["region"]]: 99})
+        feats = [dict(f) for f in t["features"]]
+        feats[k]["vo"] = "Start with the " + feats[k]["vo"]
+        tt = dict(t, features=feats, card=dict(t["card"], stats=stats))
+        out = L.strongest_last(feats, tt)
+        self.assertEqual(out[-1]["label"], feats[k]["label"], "the strongest plays last")
+        self.assertTrue(out[-1]["vo"].startswith("Saved the best for last: the "))
+        self.assertEqual([f["label"] for f in out[:-1]], [f["label"] for i, f in enumerate(feats) if i != k])
+        s = L.build_script(tt)
+        self.assertTrue([b for b in s["beats"] if b["kind"] == "feature"][-1]["vo"].startswith("Saved the best for last: "))
+        self.assertEqual(L.lint_script(s, tt), [])
+        # the cut always keeps the last feature (the #4 the line promises), even when it is the longest
+        fb = [i for i, b in enumerate(s["beats"]) if b["kind"] == "feature"]
+        durs = [2.0] + [2.5] * 5 + [8.0] + [3.2, 2.8]
+        self.assertIn(fb[-1], L.ig_keep(s, durs, tt))
+        # the topic's `best` wins; A+ and ig_features keep the topic order
+        self.assertEqual(L.strongest_last(feats, dict(tt, best=0))[-1]["label"], feats[0]["label"])
+        self.assertEqual(L.strongest_last(feats, dict(tt, template="A+")), feats)
+        self.assertEqual(L.strongest_last(feats, dict(tt, ig_features=[0, 1, 2, 3])), feats)
+        with self.assertRaises(L.Fatal):
+            L.strongest_last(feats, dict(tt, best=9))
+        self.assertEqual(L.tease_of(t, 4), {"text": "wait for #4\u2026", "counter": True})
+        self.assertIsNone(L.tease_of(dict(t, tease=False), 4))
+        self.assertEqual(L.strongest_last(feats, dict(tt, tease=False)), feats)
+        self.assertEqual(L.tease_of(dict(t, tease="number {n} hits hardest"), 4)["text"], "number 4 hits hardest")
 
     def test_lint_rejects_the_old_bridge_and_comment_ending(self):
         t = seed_topic("RSG0001")
