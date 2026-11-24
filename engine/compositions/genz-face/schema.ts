@@ -119,7 +119,7 @@ export const ScriptSchema = z
     cut: z.enum(["full", "ig"]).optional(),
     /** SLA-1685: seconds the last beat holds after its voice (theme END_HOLD_S when missing; the IG cut uses 0.6) */
     end_hold: z.number().min(0.3).max(3).optional(),
-    /** SLA-1685 (board, 24 Nov: option 2): a small line at the top from frame 0 until the payoff card ("wait for #4…"), and with `counter`
+    /** SLA-1685 (board, 24 Nov: option 2, then "hook only"): a small line at the top during the hook ("wait for #4…"), and with `counter`
      * a "1/4 … 4/4" chip on every feature beat */
     tease: z.strictObject({ text: z.string().min(1).max(40), counter: z.boolean().default(true) }).optional(),
   })

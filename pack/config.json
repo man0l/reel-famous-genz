@@ -20,7 +20,7 @@
     "source": "/paperclip/instances/default/data/reel-factory/<company>/brand/axend/r2/axend-call-2-action.png"
   },
   "tease": {
-    "$comment": "SLA-1685 (board, 24 Nov: option 2 of the text hook): a small line at the top from frame 0 until the payoff card, and a 1/4 ... 4/4 chip on every feature. {n} is the number of features the reel keeps. The strongest kept feature (topic `best`, else the highest card stat of its region in `stat_of`) plays last, so #4 pays off; an A+ reel keeps the change last. A topic's `tease` (text, or false) wins.",
+    "$comment": "SLA-1685 (board, 24 Nov: option 2 of the text hook): a small line at the top during the hook only (board, 24 Nov: \"hook only\", like @glowupmenclub's caption) and in the loop tail, and a 1/4 ... 4/4 chip on every feature. {n} is the number of features the reel keeps. The strongest kept feature (topic `best`, else the highest card stat of its region in `stat_of`) plays last, so #4 pays off; an A+ reel keeps the change last. A topic's `tease` (text, or false) wins.",
     "text": "wait for #{n}…",
     "counter": true,
     "stat_of": {"eyes": "EYE", "eye_colour": "EYE", "jaw": "JAW", "chin": "JAW", "nose": "NOS", "brows": "BRW", "skin": "SKN"}
