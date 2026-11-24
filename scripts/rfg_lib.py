@@ -836,13 +836,21 @@ def strongest_last(feats, t):
     return out
 
 
-def tease_of(t, n):
-    """The script's `tease` for a celebrity reel keeping n features (SLA-1685), or None. A topic's `tease`: false = none, a string = the line."""
+def tease_of(t, n, last=None):
+    """The script's `tease` for a celebrity reel keeping n features (SLA-1685), or None. A topic's `tease`: false = none, a string = the line.
+    Board, 24 Nov: a line per reel naming the feature that plays last ("wait for her eyes…"; the feature's `tease_noun`, else the region's
+    noun in `tease.nouns`), with "wait for #{n}…" as the fallback when there is no last feature or its region has no noun."""
     cfg = CFG.get("tease")
     own = (t or {}).get("tease")
     if not cfg or own is False:
         return None
-    return {"text": fill(own if isinstance(own, str) else cfg["text"], {"n": str(n)}), "counter": bool(cfg.get("counter", True))}
+    text = cfg["text"]
+    noun = last and (last.get("tease_noun") or cfg.get("nouns", {}).get(last.get("region", "")))
+    if noun and cfg.get("per_feature"):
+        text = cfg["per_feature"]
+    if isinstance(own, str):
+        text = own
+    return {"text": fill(text, {"n": str(n), "his": pron(t or {})["his"], "feature": noun or ""}), "counter": bool(cfg.get("counter", True))}
 
 
 def ig_planned(tid):
@@ -867,12 +875,17 @@ def build_job(tid):
     if script["beats"][0]["kind"] == "hook":
         t = topic(tid)
         keep = ig_keep(script, script["durations"], t) or keep
+        fb = [i for i, b in enumerate(script["beats"]) if b["kind"] == "feature"]
+        order = strongest_last([dict(f) for f in t["features"]], t)  # the script's feature order (SLA-1685 tease)
+        kept = [f for f, i in zip(order, fb) if i in keep]
         script["beats"] = [script["beats"][i] for i in keep]
         script["durations"] = [script["durations"][i] for i in keep]
         script.update(cut="ig", end_hold=IG["ig_end_hold_s"])
-        tease = tease_of(t, sum(b["kind"] == "feature" for b in script["beats"]))
+        tease = tease_of(t, len(kept), kept[-1] if kept else None)
         if tease:
             script["tease"] = tease
+        if CFG.get("host"):  # board, 24 Nov: the narrator is the host on every celebrity reel
+            script["host"] = True
     name = tid
     job = p("out", name, "job")
     shutil.rmtree(job, ignore_errors=True)

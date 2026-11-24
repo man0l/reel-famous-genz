@@ -65,8 +65,13 @@ export const GAME = {
   rarity: ["RARE", "HERO", "GOLD", "ICON"],
 } as const;
 
-/** Narrator: waist-up, 60-70 % of frame height, bottom-anchored and centred (never a corner mascot). Verdict beats seat it half-size at the right. */
+/** Narrator: waist-up, 60-70 % of frame height, bottom-anchored and centred. Verdict beats seat it half-size at the right; a celebrity reel's host (HOST) stands small bottom-right. */
 export const NARRATOR = { full: 1080, side: 760, sideRight: -20, punch: 0.04, punchFrames: 7 } as const;
+
+/** SLA-1685 (board, 24 Nov: "where is my faceless kpop guy, he is crucial"): with the bridge, game card and comment CTA gone the narrator had no
+ * beat left, so on a celebrity reel he stays on screen as the host, bottom-right, from frame 0 to the Axend card (`host` in the script).
+ * h = sprite height in px; the caption keeps `captionRight` px clear on the right while he stands under it. */
+export const HOST = { h: 470, right: -30, axendH: 400, captionRight: 400, poses: { hook: "point", feature: ["point", "think", "present", "cross"], axend: "present" } } as const;
 
 /** Photocard (hook): the holo frame around the painted cutout. */
 export const PHOTOCARD = { width: 740, left: 170, top: 560, innerH: 880, border: 12, radius: 40 } as const;

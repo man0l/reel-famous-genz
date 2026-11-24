@@ -60,12 +60,12 @@ class Hooks(Base):
 class Script(Base):
     def test_seed_topics_build_and_lint_clean(self):
         for tid in ("RSG0001", "RSG0002"):
-            t = seed_topic(tid)
+            t = dict(seed_topic(tid), payoff="card")
             s = L.build_script(t)
             self.assertEqual(L.lint_script(s, t), [], tid)
             kinds = [b["kind"] for b in s["beats"]]
             self.assertEqual(kinds[:2], ["hook", "feature"], "SLA-1685: no spoken bridge, the hook cuts to the first feature")
-            self.assertEqual(kinds[-2:], ["walkout", "axend"], "SLA-1685: the game card hands over to the Axend card")
+            self.assertEqual(kinds[-2:], ["walkout", "axend"], "SLA-1685: with payoff card, the game card hands over to the Axend card")
             self.assertEqual(s["lane"], "B")
             self.assertNotIn("let's break down", " ".join(b["vo"] for b in s["beats"]))
             ax = s["beats"][-1]
@@ -75,7 +75,7 @@ class Script(Base):
             self.assertTrue(s["cite"].endswith("AI-edited images"))
 
     def test_axend_payoff_replaces_the_game_card(self):
-        t = dict(seed_topic("RSG0001"), payoff="axend")
+        t = seed_topic("RSG0001")  # board, 24 Nov: the Axend payoff is the default
         s = L.build_script(t)
         self.assertEqual(L.lint_script(s, t), [])
         kinds = [b["kind"] for b in s["beats"]]
@@ -87,7 +87,7 @@ class Script(Base):
         self.assertGreater(ax["potential"]["value"], sc)
         self.assertIn("scores %.1f." % sc, ax["vo"])
         self.assertEqual(L.lint_vo(ax["vo"], "axend"), [])
-        s["beats"].insert(-1, dict(L.build_script(seed_topic("RSG0001"))["beats"][-2]))
+        s["beats"].insert(-1, dict(L.build_script(dict(t, payoff="card"))["beats"][-2]))
         self.assertTrue(any(e.startswith("payoff:") for e in L.lint_script(s, t)))
 
     def test_lint_catches_reworded_hook_and_banned_framing(self):
@@ -327,7 +327,7 @@ class Retention(Base):
         self.assertAlmostEqual(L.cut_seconds([1, 2, 3], 0.8), 6 + 0.4 + 1.2 + 0.8)
 
     def test_ig_cut_keeps_four_features_and_every_other_beat(self):
-        t = seed_topic("RSG0001")
+        t = dict(seed_topic("RSG0001"), payoff="card")
         s = L.build_script(t)
         kinds = [b["kind"] for b in s["beats"]]
         feats = [i for i, k in enumerate(kinds) if k == "feature"]
@@ -385,9 +385,19 @@ class Retention(Base):
         self.assertIsNone(L.tease_of(dict(t, tease=False), 4))
         self.assertEqual(L.strongest_last(feats, dict(tt, tease=False)), feats)
         self.assertEqual(L.tease_of(dict(t, tease="number {n} hits hardest"), 4)["text"], "number 4 hits hardest")
+        # board, 24 Nov: a line per reel naming the last feature; "wait for #4…" when it has no noun
+        self.assertEqual(L.tease_of(dict(t, gender="W"), 4, {"region": "eyes"})["text"], "wait for her eyes\u2026")
+        self.assertEqual(L.tease_of(dict(t, gender="M"), 4, {"region": "jaw"})["text"], "wait for his jawline\u2026")
+        self.assertEqual(L.tease_of(t, 4, {"region": "jaw", "tease_noun": "jaw"})["text"], "wait for his jaw\u2026")
+        self.assertEqual(L.tease_of(t, 4, {"region": "nowhere"})["text"], "wait for #4\u2026")
+        self.assertEqual(L.tease_of(dict(t, tease="own line"), 4, {"region": "eyes"})["text"], "own line")
+
+    def test_host_is_on_for_celebrity_reels(self):
+        # board, 24 Nov ("where is my faceless kpop guy, he is crucial"): the narrator hosts every celebrity reel
+        self.assertIs(L.CFG.get("host"), True)
 
     def test_lint_rejects_the_old_bridge_and_comment_ending(self):
-        t = seed_topic("RSG0001")
+        t = dict(seed_topic("RSG0001"), payoff="card")
         s = L.build_script(t)
         old = dict(s, beats=s["beats"][:1] + [{"kind": "narrator", "lines": ["x"], "vo": "So let's break down what his face actually has."}] + s["beats"][1:])
         self.assertTrue(any(x.startswith("bridge:") for x in L.lint_script(old, t)))

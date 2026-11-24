@@ -11,16 +11,21 @@
   "footer": "AI-edited images",
   "$loop_s": "SLA-1685: seconds of silent loop tail after the CTA (frame 0 held, so the replay reads as one loop); lint keeps it in 0.3-2 s",
   "loop_s": 0.8,
+  "$host": "SLA-1685 (board, 24 Nov: \"where is my faceless kpop guy, he is crucial\"): the narrator stands bottom-right as the host on the hook, every feature and the Axend card of a celebrity reel (one layer, no re-entry per cut).",
+  "host": true,
   "axend": {
     "$comment": "SLA-1685 (board, 24 Nov): every celebrity reel ends on reel-factory's Axend CTA card after the game card, with the reel's face in its circle. `card` is under stills/; copy it once from `source` (reel-factory data home).",
-    "$payoff": "SLA-1685 (board, 24 Nov): \"card\" = the game card, then this card; \"axend\" = this card replaces the game card and shows the reel's own score (OVR / 10, rarity) and potential (+potential_plus). A topic's `payoff` wins. Variant under board review.",
-    "payoff": "card",
+    "$payoff": "SLA-1685 (board, 24 Nov): \"card\" = the game card, then this card; \"axend\" = this card replaces the game card and shows the reel's own score (OVR / 10, rarity) and potential (+potential_plus). A topic's `payoff` wins. Board, 24 Nov (SLA-1685): \"axend\" on every reel.",
+    "payoff": "axend",
     "potential_plus": 0.6,
     "card": "brand/axend-call-2-action.png",
     "source": "/paperclip/instances/default/data/reel-factory/<company>/brand/axend/r2/axend-call-2-action.png"
   },
   "tease": {
     "$comment": "SLA-1685 (board, 24 Nov: option 2 of the text hook): a small line at the top during the hook only (board, 24 Nov: \"hook only\", like @glowupmenclub's caption) and in the loop tail, and a 1/4 ... 4/4 chip on every feature. {n} is the number of features the reel keeps. The strongest kept feature (topic `best`, else the highest card stat of its region in `stat_of`) plays last, so #4 pays off; an A+ reel keeps the change last. A topic's `tease` (text, or false) wins.",
+    "$per_feature": "board, 24 Nov (SLA-1685): a line per reel naming the feature that plays last, {his} = his/her, {feature} = the feature's `tease_noun`, else nouns[region]; `text` is the fallback",
+    "per_feature": "wait for {his} {feature}…",
+    "nouns": {"hair": "hair", "brows": "brows", "eyes": "eyes", "eye_colour": "eyes", "nose": "nose", "cheekbones": "cheekbones", "lips": "lips", "jaw": "jawline", "chin": "chin", "skin": "skin"},
     "text": "wait for #{n}…",
     "counter": true,
     "stat_of": {"eyes": "EYE", "eye_colour": "EYE", "jaw": "JAW", "chin": "JAW", "nose": "NOS", "brows": "BRW", "skin": "SKN"}

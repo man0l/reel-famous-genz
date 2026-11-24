@@ -122,6 +122,8 @@ export const ScriptSchema = z
     /** SLA-1685 (board, 24 Nov: option 2, then "hook only"): a small line at the top during the hook ("wait for #4…"), and with `counter`
      * a "1/4 … 4/4" chip on every feature beat */
     tease: z.strictObject({ text: z.string().min(1).max(40), counter: z.boolean().default(true) }).optional(),
+    /** SLA-1685 (board, 24 Nov): the narrator stands bottom-right as the host on the hook, every feature and the Axend card */
+    host: z.boolean().optional(),
   })
   .superRefine((s, ctx) => {
     s.beats.forEach((b, i) => {
