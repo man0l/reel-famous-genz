@@ -1,7 +1,7 @@
 import React from "react";
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { assetSrc } from "../util.ts";
-import { FONT, GAME, HOLO, HOOK_FULL, LANES, PETAL, PHOTOCARD } from "../theme.ts";
+import { AXEND, FONT, GAME, HOLO, HOOK_FULL, LANES, PETAL, PHOTOCARD, W } from "../theme.ts";
 import { Em } from "./Text.tsx";
 import type { Beat } from "../schema.ts";
 
@@ -221,5 +221,31 @@ export const WalkoutView: React.FC<{ b: Of<"walkout">; lane: "A" | "B"; src: str
         </div>
       </div>
     </>
+  );
+};
+
+/**
+ * Axend CTA (SLA-1685, board 24 Nov): reel-factory's card PNG with the reel's painted face in its circle, after the game card. The card rises
+ * in while the face settles from a close-up into the circle, so the game card hands over to "your own face card". "Chad" is patched to `label`.
+ */
+export const AxendView: React.FC<{ b: Of<"axend">; card: string; src: string; since: number }> = ({ b, card, src, since }) => {
+  const k = W / AXEND.card.w;
+  const p = interpolate(since, [0, AXEND.enterFrames], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const ease = 1 - (1 - p) ** 3;
+  const [cx, cy, d] = AXEND.circle;
+  const L = AXEND.label;
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 2, background: "#0a0a0a", transform: `translateY(${(1 - ease) * 160}px)`, opacity: Math.min(1, p * 2) }}>
+      <Img src={assetSrc(card)} style={{ position: "absolute", left: 0, top: 0, width: W, height: Math.round(AXEND.card.h * k), maxWidth: "none" }} />
+      <div style={{ position: "absolute", left: cx - d / 2, top: cy - d / 2, width: d, height: d, borderRadius: "50%", overflow: "hidden", background: "radial-gradient(circle at 50% 35%, #3a1830 0%, #12070f 75%)" }}>
+        <Img src={assetSrc(src)} style={{ position: "absolute", left: "-12%", top: "-4%", width: "124%", transform: `scale(${AXEND.faceFrom + (1 - AXEND.faceFrom) * ease})`, transformOrigin: "50% 30%" }} />
+      </div>
+      {b.label && b.label !== "Chad" ? (
+        <div style={{ position: "absolute", left: 0, top: 0, width: AXEND.card.w, height: AXEND.card.h, transform: `scale(${k})`, transformOrigin: "0 0" }}>
+          <div style={{ position: "absolute", left: L.cover.x, top: L.cover.y, width: L.cover.w, height: L.cover.h, background: L.color }} />
+          <div style={{ position: "absolute", left: L.x, top: L.baseline - L.size, height: L.size, lineHeight: `${L.size}px`, fontFamily: 'Inter, "Helvetica Neue", Arial, sans-serif', fontWeight: L.weight, fontSize: L.size, color: "#fff", whiteSpace: "nowrap" }}>{b.label}</div>
+        </div>
+      ) : null}
+    </div>
   );
 };

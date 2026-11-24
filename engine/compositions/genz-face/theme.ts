@@ -91,8 +91,22 @@ export const MIN_CUT_GAP_S = 1.4;
 
 /** Beat clock (seconds): crossfade between beats, pad after each voice clip, hold after the last. */
 export const XFADE_S = 0.25;
-export const PAD_S = 0.35;
+export const PAD_S = 0.2;
 export const END_HOLD_S = 1.2;
+/** SLA-1685 (board, 24 Nov: pace): a feature beat starts on a hard cut, a white flash and a crash zoom instead of a crossfade. */
+export const HARD_CUT = { flash: 0.5, flashFrames: 5, zoom: 0.16, zoomFrames: 7 } as const;
+
+/** SLA-1685: reel-factory's Axend CTA card (Manol's 752x1344 PNG, scaled to the 1080 width it is 1080x1930), its circle in frame pixels
+ * (centre x, y, diameter; 820 hides the placeholder's checkerboard rim) and the "Chad" rating pill patched for another label (card pixels). */
+export const AXEND = {
+  card: { w: 752, h: 1344 },
+  circle: [533, 747, 820],
+  label: { cover: { x: 515, y: 955, w: 125, h: 55 }, color: "#131414", x: 523, baseline: 995, size: 38, weight: 500 },
+  /** the card rises in and the face settles into the circle over these frames */
+  enterFrames: 9,
+  faceFrom: 1.3,
+} as const;
+
 /** SLA-1685: silent loop tail after the end hold (frame 0 held, the facemetric pattern): allowed range of the script's `loop`. */
 export const LOOP_S = { min: 0.3, max: 2 } as const;
 

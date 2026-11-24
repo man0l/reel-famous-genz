@@ -6,11 +6,11 @@ import { Stage } from "./components/Stage.tsx";
 import { Caption } from "./components/Text.tsx";
 import { DEFAULT_POSES, Narrator, spriteFor } from "./components/Narrator.tsx";
 import { CalloutView } from "./components/Callout.tsx";
-import { BridgeText, CtaView, HookView, PackView, VerdictView, WalkoutView } from "./components/Cards.tsx";
+import { AxendView, BridgeText, CtaView, HookView, PackView, VerdictView, WalkoutView } from "./components/Cards.tsx";
 import { CheckView, TopicView, TypeHeader, VersusView } from "./components/SelfTest.tsx";
 import { cutRect } from "./geometry.ts";
 import { parseScript, type Beat, type Script } from "./schema.ts";
-import { FPS } from "./theme.ts";
+import { FPS, HARD_CUT } from "./theme.ts";
 import type { Pose } from "./theme.ts";
 import { captionAt, fadeIn, framesSinceCut, plan, stepAt, type BeatPlan, type Plan } from "./timing.ts";
 
@@ -22,6 +22,9 @@ const planOf = (s: Script): Plan =>
     s.loop ?? 0,
     s.end_hold,
   );
+
+/** SLA-1685 (pace): a feature beat starts on a hard cut (flash + crash zoom), not a crossfade, so the beat before it ends at its start. */
+const hardCut = (s: Script, i: number): boolean => i > 0 && s.beats[i].kind === "feature";
 
 /** The cut a callout pops on: its explicit chunk, else the beat's k-th cut (so pops are counted cuts). */
 const popChunk = (bp: BeatPlan, k: number, chunk?: number): number => chunk ?? bp.cuts[Math.min(k, bp.cuts.length - 1)] ?? 0;
@@ -50,7 +53,7 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
   const showNarrator = onChar;
   const side = beat.kind === "verdict" || beat.kind === "walkout";
   return (
-    <AbsoluteFill style={{ opacity: fadeIn(index, T, time.off) }}>
+    <AbsoluteFill style={{ opacity: hardCut(script, index) ? 1 : fadeIn(index, T, time.off) }}>
       {beat.kind === "hook" ? <HookView b={beat} lane={lane} src={img} hangul={script.hangul} since={enter} /> : null}
       {beat.kind === "pack" ? <PackView b={beat} since={enter} /> : null}
       {beat.kind === "narrator" ? <BridgeText lines={beat.lines} lane={lane} since={enter} /> : null}
@@ -58,6 +61,7 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
       {beat.kind === "verdict" ? <VerdictView b={beat} lane={lane} src={img} hangul={script.hangul} since={enter} chime={script.sfx} /> : null}
       {beat.kind === "walkout" ? <WalkoutView b={beat} lane={lane} src={img} since={enter} /> : null}
       {beat.kind === "cta" ? <CtaView b={beat} lane={lane} since={enter} /> : null}
+      {beat.kind === "axend" ? <AxendView b={beat} card={script.assets[beat.card]} src={img} since={enter} /> : null}
       {beat.kind === "topic" ? <TopicView b={beat} srcs={srcs} ratios={ratios} since={enter} /> : null}
       {beat.kind === "check" ? <CheckView b={beat} src={img || undefined} ratio={beat.img ? script.ratios[beat.img] : undefined} since={enter} /> : null}
       {beat.kind === "type" ? (
@@ -68,7 +72,7 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
       ) : null}
       {beat.kind === "versus" ? <VersusView b={beat} srcs={srcs as [string, string]} ratios={ratios as [number, number]} since={enter} /> : null}
       {showNarrator ? <Narrator src={sprite} mode={side ? "side" : "full"} since={since} enter={enter} /> : null}
-      <Caption chunk={parts[j] ?? ""} hot={beat.hot} t={t} from={from} to={to} onChar={onChar} bottom={beat.kind === "hook" || beat.kind === "pack" || (beat.kind === "topic" && imgs.length) ? 210 : 430} gamecard={lens === "gamecard"} />
+      <Caption chunk={parts[j] ?? ""} hot={beat.hot} t={t} from={from} to={to} onChar={onChar} bottom={beat.kind === "axend" ? 150 : beat.kind === "hook" || beat.kind === "pack" || (beat.kind === "topic" && imgs.length) ? 210 : 430} gamecard={lens === "gamecard"} />
     </AbsoluteFill>
   );
 };
@@ -77,7 +81,8 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
 const FeatureView: React.FC<{ script: Script; beat: Extract<Beat, { kind: "feature" | "type" }>; bp: BeatPlan; t: number; step: number; since: number; img: string }> = ({ script, beat, bp, t, step, since, img }) => {
   const key = beat.img;
   const ratio = script.ratios[key];
-  const punch = interpolate(since, [0, 8], [0.05, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const punch = interpolate(since, [0, 8], [0.05, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) +
+    (beat.kind === "feature" ? interpolate(t * FPS, [0, HARD_CUT.zoomFrames], [HARD_CUT.zoom, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 0);
   const scale = 1 + 0.025 * Math.max(0, step) + punch + (0.015 * t) / Math.max(1, bp.time.shown);
   const rect = cutRect(beat.crop, ratio, scale);
   return (
@@ -90,6 +95,12 @@ const FeatureView: React.FC<{ script: Script; beat: Extract<Beat, { kind: "featu
       })}
     </>
   );
+};
+
+/** White flash over a hard cut, fading out over HARD_CUT.flashFrames. */
+const Flash: React.FC = () => {
+  const frame = useCurrentFrame();
+  return <AbsoluteFill style={{ background: "#fff", zIndex: 20, opacity: interpolate(frame, [0, HARD_CUT.flashFrames], [HARD_CUT.flash, 0], { extrapolateRight: "clamp" }) }} />;
 };
 
 const Music: React.FC<{ music: NonNullable<Script["music"]>; total: number }> = ({ music, total }) => {
@@ -120,10 +131,17 @@ export const ReelView: React.FC<{ script: Script; audio?: boolean }> = ({ script
       <Stage lane={script.lane} lens={script.lens} />
       {/* SLA-1685 (board, 24 Nov): no episode tag and no credit line in the picture; the photo credit and AI-edited note ride in the post text */}
       {pl.tl.beats.map((time, i) => (
-        <Sequence key={i} from={time.from} durationInFrames={time.frames} name={`beat ${pad2(i)} ${script.beats[i].kind}`} layout="none">
+        <Sequence key={i} from={time.from} durationInFrames={i + 1 < pl.tl.beats.length && hardCut(script, i + 1) ? pl.tl.beats[i + 1].from - time.from : time.frames} name={`beat ${pad2(i)} ${script.beats[i].kind}`} layout="none">
           <BeatView script={script} index={i} bp={pl.beats[i]} />
         </Sequence>
       ))}
+      {pl.tl.beats.map((time, i) =>
+        hardCut(script, i) ? (
+          <Sequence key={`f${i}`} from={time.from} durationInFrames={HARD_CUT.flashFrames} name="flash" layout="none">
+            <Flash />
+          </Sequence>
+        ) : null,
+      )}
       {pl.tl.frames > pl.tl.body ? (
         // SLA-1685: silent loop tail, frame 0 of the hook held after the CTA so the replay reads as one loop (facemetric's SLA-1547 pattern)
         <Sequence from={pl.tl.body} durationInFrames={pl.tl.frames - pl.tl.body} name="loop tail" layout="none">

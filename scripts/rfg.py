@@ -98,27 +98,20 @@ def cmd_tts(a):
 
 
 def cmd_render(a):
-    """The full reel, then the Instagram cut (SLA-1685) when the reel has more features than it keeps. A cut whose MP4 is newer than the script
-    and the voice is not rendered again (so a call that collects the IG cut leaves the full one alone); --force renders both again."""
+    """The reel (SLA-1685: the short cut, every platform). An MP4 newer than the script and the voice is not rendered again; --force does."""
     inputs = max(os.path.getmtime(p("work", a.id, f)) for f in ("script.json", "durations.json"))
-    pending = False
-    for cut in [None] + (["ig"] if L.ig_planned(a.id) else []):
-        name = a.id + ("_" + cut if cut else "")
-        mp4 = p("out", name + ".mp4")
-        if not getattr(a, "force", False) and name not in L.cf_jobs() and os.path.exists(mp4) and os.path.getmtime(mp4) > inputs:
-            log("%s: %s is up to date (--force renders it again)" % (name, mp4))
-            continue
-        if getattr(a, "force", False) and name not in L.cf_jobs() and os.path.exists(mp4):
+    mp4 = p("out", a.id + ".mp4")
+    if not getattr(a, "force", False) and a.id not in L.cf_jobs() and os.path.exists(mp4) and os.path.getmtime(mp4) > inputs:
+        log("%s: %s is up to date (--force renders it again)" % (a.id, mp4))
+    else:
+        if getattr(a, "force", False) and a.id not in L.cf_jobs() and os.path.exists(mp4):
             os.remove(mp4)
         try:
-            out = L.render_cloudflare(a.id, a.wait, cut)
+            out = L.render_cloudflare(a.id, a.wait)
         except L.Pending as e:
             log(str(e))
-            pending = True
-            continue
-        log("%s: wrote %s (%.1f MB)" % (name, out, os.path.getsize(out) / 1e6))
-    if pending:
-        return 75
+            return 75
+        log("%s: wrote %s (%.1f MB)" % (a.id, out, os.path.getsize(out) / 1e6))
     L.set_status(a.id, "rendered")
 
 
@@ -179,16 +172,11 @@ def cmd_qa(a):
     if [r for r in L.topics() if r["id"] == a.id and r["status"] == "rendered"]:
         L.set_status(a.id, "qa_ok")
     log("QA PASS %s (cover out/%s_cover.jpg)" % (a.id, a.id))
-    ig = L.qa_ig(a.id)
-    if ig is not None:
-        log("IG cut %s: %s" % ("PASS" if not ig else "FAIL", "out/%s_ig.mp4" % a.id if not ig else "; ".join(ig) + " (Instagram gets the full reel)"))
 
 
 def cmd_host(a):
     h = L.host(a.id)
     log("%s video %s\n%s cover %s" % (a.id, h["mp4"], a.id, h["cover"]))
-    if L.qa_ig(a.id) == []:
-        log("%s IG cut %s" % (a.id, L.host(a.id, "ig")["mp4"]))
 
 
 def cmd_plan(a):

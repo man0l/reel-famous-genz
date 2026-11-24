@@ -47,6 +47,7 @@
       "slots": {"test": ["you are attractive to girls", "your hair is damaged"]}
     }
   },
+  "$bridge": "SLA-1685 (board, 24 Nov): celebrity reels have no spoken bridge any more; the hook cuts straight to the first feature (flash + crash zoom). The self-diagnosis kinds keep theirs.",
   "bridge": {
     "celebrity": "So let's break down what {his} face actually has.",
     "types": "Let's go through them one by one.",
@@ -64,5 +65,10 @@
     "selftest": {"vo": "Comment which one you passed.", "head": ["COMMENT WHICH", "YOU *PASSED*"], "pills": "#"},
     "types": {"vo": "Comment your type.", "head": ["COMMENT", "YOUR *TYPE*"], "pills": "#"},
     "compare": {"vo": "Comment A or B.", "head": ["COMMENT", "*A* OR *B*"], "pills": ["A", "B"]}
+  },
+  "axend": {
+    "$comment": "SLA-1685 (board, 24 Nov): the celebrity CTA, spoken over reel-factory's Axend card right after the game card; a topic's `axend_vo` wins. The comment prompt moves to the post text.",
+    "vo": "Want your own face card? Scan yours in Axend.",
+    "hot": ["Axend.", "card?"]
   }
 }
