@@ -13,6 +13,9 @@
   "loop_s": 0.8,
   "axend": {
     "$comment": "SLA-1685 (board, 24 Nov): every celebrity reel ends on reel-factory's Axend CTA card after the game card, with the reel's face in its circle. `card` is under stills/; copy it once from `source` (reel-factory data home).",
+    "$payoff": "SLA-1685 (board, 24 Nov): \"card\" = the game card, then this card; \"axend\" = this card replaces the game card and shows the reel's own score (OVR / 10, rarity) and potential (+potential_plus). A topic's `payoff` wins. Variant under board review.",
+    "payoff": "card",
+    "potential_plus": 0.6,
     "card": "brand/axend-call-2-action.png",
     "source": "/paperclip/instances/default/data/reel-factory/<company>/brand/axend/r2/axend-call-2-action.png"
   },

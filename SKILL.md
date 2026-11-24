@@ -78,7 +78,8 @@ One account, one lane: **Gen Z actors and creators** (no football, despite the n
 - `engine/render.sh` stays for one-frame layout stills only (see "Writing a topic", step 4). Never use it, or anything else on the box, for a reel MP4.
 - QA and covers use ffmpeg/ffprobe: the system ones, else the binaries in `render.ffmpeg_runtime` (`$RFG_HOME/remotion-runtime/`, already built).
 - `RFG_ENGINE` points the skill at another checkout of itself (tests only).
-- **Axend card and music** live in the data home: `stills/brand/axend-call-2-action.png` (Manol's card, from reel-factory's `brand/axend/r2/`) and `music/*.mp3` (reel-factory's `music/facemetric/`). `script` and `render` stop with the source path when either is missing. The card says "2.9 Sub-3" / "POTENTIAL 7 Chad" next to the face in the circle; women's reels patch "Chad" to "Eve".
+- **Axend card and music** live in the data home: `stills/brand/axend-call-2-action.png` (Manol's card, from reel-factory's `brand/axend/r2/`) and `music/*.mp3` (reel-factory's `music/facemetric/`). `script` and `render` stop with the source path when either is missing. The card says "2.9 Sub-3" / "POTENTIAL 7 Chad" next to the face in the circle; women's reels patch "Chad" to "Eve". **Payoff variant** (`axend.payoff: "axend"` in `pack/config.json`, or a topic's `payoff`; board review, 24 Nov): the Axend card replaces the game card, its panels show the reel's own score (OVR / 10 with the rarity, e.g. "8.7 · ICON") and potential (+0.6), counting up, and the line is `hooks.json` → `axend.payoff_vo`.
+- `tts` keeps `work/<id>/vo/lines.json` and voices a clip again when its line changed; older work dirs without it reuse clips by index, so run `tts --force` after the beats change.
 - Needs `OPEN_ROUTER_API_KEY` for restyle, copy and tts. The chroma key needs node and `sharp`; `rfg.sh` finds `/app/node_modules/.pnpm/sharp@*/node_modules` or uses `$RF_SHARP`.
 
 ## Posting (all four jenny accounts)

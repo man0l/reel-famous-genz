@@ -69,6 +69,9 @@
   "axend": {
     "$comment": "SLA-1685 (board, 24 Nov): the celebrity CTA, spoken over reel-factory's Axend card right after the game card; a topic's `axend_vo` wins. The comment prompt moves to the post text.",
     "vo": "Want your own face card? Scan yours in Axend.",
-    "hot": ["Axend.", "card?"]
+    "hot": ["Axend.", "card?"],
+    "$payoff_vo": "SLA-1685 variant (payoff: axend): the line over the Axend card when it replaces the game card; {score} is the card's OVR on the Axend scale (87 -> 8.7).",
+    "payoff_vo": "Put it all together and {his} face scores {score}. Want your own score? Scan yours in Axend.",
+    "payoff_hot": ["score?", "Axend."]
   }
 }
