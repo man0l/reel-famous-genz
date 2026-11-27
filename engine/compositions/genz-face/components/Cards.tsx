@@ -1,7 +1,8 @@
 import React from "react";
-import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { Img, interpolate, OffthreadVideo, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { assetSrc } from "../util.ts";
-import { AXEND, FONT, GAME, HOLO, HOOK_FULL, LANES, PETAL, PHOTOCARD, W } from "../theme.ts";
+import { clipFrames } from "../timing.ts";
+import { AXEND, FONT, FPS, GAME, H, HOLO, HOOK_FULL, LANES, PETAL, PHOTOCARD, W } from "../theme.ts";
 import { Em } from "./Text.tsx";
 import type { Beat } from "../schema.ts";
 
@@ -13,16 +14,35 @@ const shadowText = "0 8px 30px rgba(0,0,0,.7), 0 0 60px rgba(201,184,255,.35)";
  * Hook, full layout (SLA-1685, default): the painted cutout fills the frame from frame 0, nothing enters and a slow push-in keeps it alive.
  * No headline (board, 24 Nov): the spoken hook runs in the captions only, so the face is the whole visual hook.
  */
-const HookFull: React.FC<{ b: Of<"hook">; lane: "A" | "B"; src: string; hangul: boolean; since: number }> = ({ b, src, since }) => {
+const HookFull: React.FC<HookProps> = ({ b, src, ratio, since }) => {
   const c = b.crop ?? HOOK_FULL.crop;
-  return <Img src={assetSrc(src)} style={{ position: "absolute", left: c.x, top: c.y, width: c.w, zIndex: 1, transform: `scale(${1 + 0.0012 * since})`, transformOrigin: "50% 30%" }} />;
+  const clip = b.open?.clip;
+  const style: React.CSSProperties = { position: "absolute", left: c.x, top: c.y, width: c.w, zIndex: 1, transform: `scale(${1 + 0.0012 * since})`, transformOrigin: "50% 30%" };
+  if (!clip || since >= clipFrames(clip)) return <Img src={assetSrc(src)} style={style} />;
+  // SLA-1728: the clip is a whole reel frame (the photo aligned onto the cutout), shown through the cutout's alpha in the cutout's own box
+  // with the same push-in, so its last frame lands on the still. The hidden Img holds the render until the mask PNG has loaded.
+  const mask = `url(${assetSrc(src)})`;
+  return (
+    <div style={{ ...style, height: c.w * (ratio ?? 1.34), overflow: "hidden", WebkitMaskImage: mask, maskImage: mask, WebkitMaskSize: "100% 100%", maskSize: "100% 100%", WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat" }}>
+      <Img src={assetSrc(src)} style={{ position: "absolute", width: 1, opacity: 0 }} />
+      <OffthreadVideo
+        src={assetSrc(clip.src)}
+        muted
+        startFrom={Math.round(clip.in * FPS)}
+        playbackRate={clip.rate}
+        style={{ position: "absolute", left: -c.x, top: -c.y, width: W, height: H, maxWidth: "none", objectFit: "fill" }}
+      />
+    </div>
+  );
 };
 
+type HookProps = { b: Of<"hook">; lane: "A" | "B"; src: string; ratio?: number; hangul: boolean; since: number };
+
 /** Hook: the full-frame face alone (default) or, with `layout: "card"`, the headline, sub line and holo photocard with the painted cutout and name strip. */
-export const HookView: React.FC<{ b: Of<"hook">; lane: "A" | "B"; src: string; hangul: boolean; since: number }> = (props) =>
+export const HookView: React.FC<HookProps> = (props) =>
   (props.b.layout ?? "full") === "full" ? <HookFull {...props} /> : <HookCard {...props} />;
 
-const HookCard: React.FC<{ b: Of<"hook">; lane: "A" | "B"; src: string; hangul: boolean; since: number }> = ({ b, lane, src, hangul, since }) => {
+const HookCard: React.FC<HookProps> = ({ b, lane, src, hangul, since }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const subTop = 200 + b.head.length * 98 + 34;

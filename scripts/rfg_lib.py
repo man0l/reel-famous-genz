@@ -886,6 +886,10 @@ def build_job(tid):
             script["tease"] = tease
         if CFG.get("host"):  # board, 24 Nov: the narrator is the host on every celebrity reel
             script["host"] = True
+        import rfg_morph  # SLA-1728: the clip morph opener, when rfg_morph.auto decided one
+        op, clip = rfg_morph.opener(tid)
+        if op:
+            script["beats"][0]["open"] = op
     name = tid
     job = p("out", name, "job")
     shutil.rmtree(job, ignore_errors=True)
@@ -897,6 +901,9 @@ def build_job(tid):
             raise Fatal("missing asset %s" % rel)
         os.makedirs(os.path.dirname(os.path.join(pub, rel)), exist_ok=True)
         shutil.copyfile(src, os.path.join(pub, rel))
+    if script["beats"][0].get("open"):
+        os.makedirs(os.path.join(pub, "morph"))
+        shutil.copyfile(clip, os.path.join(pub, script["beats"][0]["open"]["clip"]["src"]))
     os.makedirs(os.path.join(pub, "vo"))
     for j, i in enumerate(keep):
         shutil.copyfile(os.path.join(wd, "vo", "%02d.mp3" % i), os.path.join(pub, "vo", "%02d.mp3" % j))
@@ -1086,11 +1093,17 @@ def probe(path):
     return json.loads(out.stdout)
 
 
+def cover_at(tid):
+    """Seconds into the reel the cover is taken at: `cover_at_s`, or after the clip morph opener (SLA-1728), so it is the painted face."""
+    import rfg_morph
+    return round(max(SCHED["cover_at_s"], rfg_morph.play_seconds(tid) + 0.3), 2)
+
+
 def make_cover(tid):
     """9:16 JPEG from the hook frame, used as the IG cover and the YT/Pinterest thumbnail."""
     out = p("out", tid + "_cover.jpg")
     cmd, env = ff("ffmpeg")
-    subprocess.run(cmd + ["-v", "error", "-y", "-ss", str(SCHED["cover_at_s"]), "-i", p("out", tid + ".mp4"), "-frames:v", "1", "-q:v", "3", out],
+    subprocess.run(cmd + ["-v", "error", "-y", "-ss", str(cover_at(tid)), "-i", p("out", tid + ".mp4"), "-frames:v", "1", "-q:v", "3", out],
                    env=env, check=True)
     return out
 

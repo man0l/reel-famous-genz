@@ -37,6 +37,9 @@ export const BeatSchema = z.discriminatedUnion("kind", [
     layout: z.enum(["full", "card"]).optional(),
     /** full layout: cutout width / left / top in frame pixels (theme HOOK_FULL.crop when missing) */
     crop: CropSchema.optional(),
+    /** SLA-1728: full layout only, the clip morph opener (scripts/rfg_morph.py): `clip.src` (a whole 1080x1920 frame video, the Commons photo
+     * turning into the portrait) plays from `in` to `out` (clip seconds) at `rate` under the cutout's alpha, then the still shows */
+    open: z.strictObject({ clip: z.strictObject({ src: Name, in: z.number().min(0), out: z.number().positive(), rate: z.number().min(0.5).max(4) }) }).optional(),
     ...common }),
   z.strictObject({ kind: z.literal("pack"), img: Name, head: z.array(Name).min(1).max(3), name: Name, sub: z.string().optional(), ...common }),
   z.strictObject({ kind: z.literal("narrator"), lines: z.array(Name).min(1).max(4), ...common }),

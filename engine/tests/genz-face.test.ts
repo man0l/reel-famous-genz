@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { calloutBox, cutRect, leadStart, plain, runs } from "../compositions/genz-face/geometry.ts";
 import { beatAssetKeys, beatTexts, footerOf, parseScript, safeParseScript, ScriptError } from "../compositions/genz-face/schema.ts";
-import { bare, plan, stepAt, wordWindows } from "../compositions/genz-face/timing.ts";
+import { bare, clipFrames, plan, stepAt, wordWindows } from "../compositions/genz-face/timing.ts";
 import { CUTS_PER_MIN, LANES, MAX_LINE_WORDS } from "../compositions/genz-face/theme.ts";
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "genz-face");
@@ -203,6 +203,17 @@ test("hook (SLA-1685): full-frame layout by default, the old photocard on reques
   raw.beats[0].crop = { w: 1500, x: -210, y: 200 };
   raw.beats[0].layout = "split";
   assert.deepEqual(rule(raw), ["E1"]);
+});
+
+test("hook clip morph opener (SLA-1728): a strict clip, played for (out - in) / rate", () => {
+  const raw = clone(load("ok-B-keoghan.json"));
+  raw.beats[0].open = { clip: { src: "morph/clip.mp4", in: 1.5, out: 3.95, rate: 1.36 } };
+  assert.deepEqual(rule(raw), []);
+  assert.equal(clipFrames(raw.beats[0].open.clip), 54, "2.45 s of clip at 1.36x = 1.8 s");
+  raw.beats[0].open = { clip: { src: "morph/clip.mp4", in: 1.5, out: 3.95 } };
+  assert.deepEqual(rule(raw), ["E1"], "no rate");
+  raw.beats[0].open = { clip: { src: "morph/clip.mp4", in: 1.5, out: 3.95, rate: 1.36, box: [0, 0, 1, 1] } };
+  assert.deepEqual(rule(raw), ["E1"], "unknown key");
 });
 
 test("the first beat starts at frame 0, so the voice starts at 0.0 s (SLA-1685)", () => {

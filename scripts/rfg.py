@@ -103,9 +103,28 @@ def cmd_tts(a):
     log("%s: %d clips, %.1f s of voice" % (a.id, len(durs), sum(durs)))
 
 
+def morph(tid, redo=False):
+    """SLA-1728: decide the clip morph opener (rfg_morph.auto; recorded, so a re-render costs nothing). A video API failure leaves the
+    still hook for this render and nothing recorded, so the next render tries again."""
+    import rfg_morph
+    try:
+        return rfg_morph.auto(tid, redo=redo)
+    except Fatal as e:
+        log("  morph %s: failed, still hook this time (%s)" % (tid, e))
+        return None
+
+
+def cmd_morph(a):
+    pl = morph(a.id, a.redo)
+    log(json.dumps(pl, indent=1) if pl else "%s: no clip morph (not a full-frame celebrity hook, RFG_MORPH=off, topic morph=false or no libraries)" % a.id)
+
+
 def cmd_render(a):
-    """The reel (SLA-1685: the short cut, every platform). An MP4 newer than the script and the voice is not rendered again; --force does."""
-    inputs = max(os.path.getmtime(p("work", a.id, f)) for f in ("script.json", "durations.json"))
+    """The reel (SLA-1685: the short cut, every platform). An MP4 newer than the script, the voice and the morph decision is not rendered
+    again; --force does. SLA-1728: the clip morph opener is decided first."""
+    if a.id not in L.cf_jobs():
+        morph(a.id)
+    inputs = max(os.path.getmtime(p("work", a.id, f)) for f in ("script.json", "durations.json", "morph.json") if os.path.exists(p("work", a.id, f)))
     mp4 = p("out", a.id + ".mp4")
     if not getattr(a, "force", False) and a.id not in L.cf_jobs() and os.path.exists(mp4) and os.path.getmtime(mp4) > inputs:
         log("%s: %s is up to date (--force renders it again)" % (a.id, mp4))
@@ -252,6 +271,7 @@ def main(argv=None):
     q = sp.add_parser("posted"); q.add_argument("id"); q.add_argument("--platform", required=True); q.add_argument("--url", default="")
     q = sp.add_parser("stats"); q.add_argument("id"); q.add_argument("--views", type=int)
     q = sp.add_parser("learn"); q.add_argument("text")
+    q = sp.add_parser("morph"); q.add_argument("id"); q.add_argument("--redo", action="store_true", help="decide again (a new clip)")
     for name in ("qa", "host"):
         sp.add_parser(name).add_argument("id")
     for name in ("plan", "schedule", "supply"):
