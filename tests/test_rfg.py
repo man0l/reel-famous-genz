@@ -470,10 +470,15 @@ class Morph(Base):
         finally:
             self.M._call = real
 
+    def test_qa_times_follow_the_clip_length(self):
+        self.assertEqual(self.M.qa_times(4)[-2:], [3.75, 3.95])
+        self.assertEqual(self.M.qa_times(3)[-2:], [2.75, 2.95])
+        self.assertNotIn("veo", " ".join(m["model"] for m in self.M.MODELS), "board, 27 Nov: no Veo")
+
     @unittest.skipUnless(Image, "needs PIL and numpy (reel-factory's pylib)")
     def test_trim_keeps_the_clean_stretch_that_lands(self):
         first, last = Image.new("RGB", (90, 160), (0, 0, 0)), Image.new("RGB", (90, 160), (255, 255, 255))
-        ts = self.M.QA_TIMES
+        ts = self.M.qa_times(4)
         frames = {t: Image.new("RGB", (90, 160), (round(255 * min(1, max(0, (t - 1.0) / 2.0))),) * 3) for t in ts}   # changes 1.0-3.0 s
         ok = {t: True for t in ts}
         t_in, t_out, rate = self.M.trim(frames, ok, first, last)
