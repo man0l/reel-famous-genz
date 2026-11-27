@@ -163,3 +163,6 @@ export function teaseAt(kinds: readonly string[], tl: Timeline, frame: number): 
   const n = kinds[i] === "feature" ? kinds.slice(0, i + 1).filter((k) => k === "feature").length : 0;
   return { line: kinds[i] === "hook", n, of };
 }
+
+/** SLA-1728: frames the hook's clip morph opener plays for. */
+export const clipFrames = (clip: { in: number; out: number; rate: number }): number => Math.max(1, Math.round(((clip.out - clip.in) / clip.rate) * FPS));

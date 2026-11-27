@@ -423,5 +423,97 @@ class Retention(Base):
             shutil.rmtree(wd)
 
 
+try:
+    import numpy  # noqa: F401
+    from PIL import Image
+except ImportError:  # the system python has neither; rfg.sh puts reel-factory's pylib on PYTHONPATH
+    Image = None
+
+
+class Morph(Base):
+    """SLA-1728: the clip morph opener (the Commons photo turns into the painted portrait), decided per reel by rfg_morph.auto."""
+
+    def setUp(self):
+        import rfg_morph
+        self.M = rfg_morph
+
+    def test_applies_to_full_frame_celebrity_hooks_only(self):
+        s = L.build_script(seed_topic("RSG0001"))
+        self.assertTrue(self.M.applies(s))
+        card = dict(s, beats=[dict(s["beats"][0], layout="card")] + s["beats"][1:])
+        self.assertFalse(self.M.applies(card))
+        self.assertFalse(self.M.applies(L.build_script(seed_topic("RSG0010"))), "a self-diagnosis topic card has no portrait to morph into")
+        self.assertEqual(self.M.hook_rect(s)[:3], (-160, 250, 1400))
+
+    def test_play_leaves_the_still_on_screen_before_the_first_cut(self):
+        self.assertEqual(self.M.play_for([4.0]), self.M.PLAY)
+        self.assertEqual(self.M.play_for([2.0]), 1.4)
+        self.assertEqual(self.M.play_for([1.0]), self.M.MIN_PLAY)
+
+    def test_off_switch_and_topic_opt_out(self):
+        os.environ["RFG_MORPH"] = "off"
+        try:
+            self.assertIsNone(self.M.auto("RSG0001"))
+        finally:
+            del os.environ["RFG_MORPH"]
+
+    def test_refusal_is_a_decision_not_a_glitch(self):
+        calls = iter([{"id": "v1", "status": "failed", "error": "The input content is suspected to include the likeness of a public figure."}])
+        real, os.environ["OPEN_ROUTER_API_KEY"] = self.M._call, os.environ.get("OPEN_ROUTER_API_KEY", "test")
+        self.M._call = lambda url, body=None: next(calls)
+        try:
+            with self.assertRaises(self.M.Refused):
+                self.M.gen_clip(L.p("stills", L.cut_rel("Barry Keoghan")), L.p("stills", L.cut_rel("Barry Keoghan")), "x", os.path.join(TMP, "c.mp4"))
+            calls = iter([{"id": "v2", "status": "failed", "error": "upstream timeout"}])
+            with self.assertRaises(L.Fatal):
+                self.M.gen_clip(L.p("stills", L.cut_rel("Barry Keoghan")), L.p("stills", L.cut_rel("Barry Keoghan")), "x", os.path.join(TMP, "c.mp4"))
+        finally:
+            self.M._call = real
+
+    @unittest.skipUnless(Image, "needs PIL and numpy (reel-factory's pylib)")
+    def test_trim_keeps_the_clean_stretch_that_lands(self):
+        first, last = Image.new("RGB", (90, 160), (0, 0, 0)), Image.new("RGB", (90, 160), (255, 255, 255))
+        ts = self.M.QA_TIMES
+        frames = {t: Image.new("RGB", (90, 160), (round(255 * min(1, max(0, (t - 1.0) / 2.0))),) * 3) for t in ts}   # changes 1.0-3.0 s
+        ok = {t: True for t in ts}
+        t_in, t_out, rate = self.M.trim(frames, ok, first, last)
+        self.assertEqual((t_in, t_out), (1.0, 3.95), "a quarter second before the last frame under 15 % of the way")
+        self.assertAlmostEqual((t_out - t_in) / rate, self.M.PLAY, places=1)
+        # a blink at 3.25 s: the clip ends at 3.0 s, the last clean frame, which has landed
+        self.assertEqual(self.M.trim(frames, {**ok, 3.25: False}, first, last)[1], 3.0)
+        # a glitch half-way: the clip never reaches the portrait, no morph
+        self.assertIsNone(self.M.trim(frames, {**ok, 2.0: False}, first, last))
+
+    def test_render_job_plays_the_decided_clip_and_the_cover_comes_after_it(self):
+        t = seed_topic("RSG0001")
+        wd = L.p("work", "RSG0001")
+        os.makedirs(os.path.join(wd, "vo"), exist_ok=True)
+        s = L.build_script(t)
+        json.dump(s, open(os.path.join(wd, "script.json"), "w"))
+        durs = [2.0] + [3.0] * 6 + [3.2]
+        json.dump(durs, open(os.path.join(wd, "durations.json"), "w"))
+        for i in range(len(s["beats"])):
+            open(os.path.join(wd, "vo", "%02d.mp3" % i), "wb").write(b"mp3")
+        os.makedirs(L.p("music"), exist_ok=True)
+        open(L.p("music", "beat.mp3"), "wb").write(b"mp3")
+        L.save_topic(t)
+        try:
+            job = L.build_job("RSG0001")
+            self.assertNotIn("open", json.load(open(os.path.join(job, "script.json")))["beats"][0], "no decision: the still hook")
+            self.assertEqual(L.cover_at("RSG0001"), L.SCHED["cover_at_s"])
+            os.makedirs(os.path.join(wd, "morph"), exist_ok=True)
+            open(os.path.join(wd, self.M.CLIP), "wb").write(b"mp4")
+            json.dump({"key": "k", "morph": True, "in": 1.5, "out": 3.95, "rate": 1.36}, open(os.path.join(wd, self.M.PLAN), "w"))
+            job = L.build_job("RSG0001")
+            hook = json.load(open(os.path.join(job, "script.json")))["beats"][0]
+            self.assertEqual(hook["open"], {"clip": {"src": self.M.CLIP, "in": 1.5, "out": 3.95, "rate": 1.36}})
+            self.assertTrue(os.path.exists(os.path.join(job, "public", self.M.CLIP)))
+            self.assertAlmostEqual(L.cover_at("RSG0001"), round((3.95 - 1.5) / 1.36 + 0.3, 2))
+            json.dump({"key": "k", "morph": False, "why": "refused"}, open(os.path.join(wd, self.M.PLAN), "w"))
+            self.assertNotIn("open", json.load(open(os.path.join(L.build_job("RSG0001"), "script.json")))["beats"][0])
+        finally:
+            shutil.rmtree(wd)
+
+
 if __name__ == "__main__":
     unittest.main()

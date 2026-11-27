@@ -54,7 +54,7 @@ const BeatView: React.FC<{ script: Script; index: number; bp: BeatPlan }> = ({ s
   const side = beat.kind === "verdict" || beat.kind === "walkout";
   return (
     <AbsoluteFill style={{ opacity: hardCut(script, index) ? 1 : fadeIn(index, T, time.off) }}>
-      {beat.kind === "hook" ? <HookView b={beat} lane={lane} src={img} hangul={script.hangul} since={enter} /> : null}
+      {beat.kind === "hook" ? <HookView b={beat} lane={lane} src={img} ratio={script.ratios[beat.img]} hangul={script.hangul} since={enter} /> : null}
       {beat.kind === "pack" ? <PackView b={beat} since={enter} /> : null}
       {beat.kind === "narrator" ? <BridgeText lines={beat.lines} lane={lane} since={enter} /> : null}
       {beat.kind === "feature" ? <FeatureView script={script} beat={beat} bp={bp} t={t} step={step} since={since} img={img} /> : null}
