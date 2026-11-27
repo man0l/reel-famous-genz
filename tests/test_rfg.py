@@ -431,7 +431,7 @@ except ImportError:  # the system python has neither; rfg.sh puts reel-factory's
 
 
 class Morph(Base):
-    """SLA-1728: the clip morph opener (the Commons photo turns into the painted portrait), decided per reel by rfg_morph.auto."""
+    """SLA-1728: the glow-up clip morph opener (a "before glow-up" still turns into the painted portrait), made per reel by rfg_morph.auto."""
 
     def setUp(self):
         import rfg_morph
@@ -483,11 +483,59 @@ class Morph(Base):
         ok = {t: True for t in ts}
         t_in, t_out, rate = self.M.trim(frames, ok, first, last)
         self.assertEqual((t_in, t_out), (1.0, 3.95), "a quarter second before the last frame under 15 % of the way")
-        self.assertAlmostEqual((t_out - t_in) / rate, self.M.PLAY, places=1)
+        self.assertAlmostEqual((t_out - t_in) / rate + self.M.hold_for(self.M.PLAY), self.M.PLAY, places=1, msg="the hold plays first")
         # a blink at 3.25 s: the clip ends at 3.0 s, the last clean frame, which has landed
         self.assertEqual(self.M.trim(frames, {**ok, 3.25: False}, first, last)[1], 3.0)
         # a glitch half-way: the clip never reaches the portrait, no morph
         self.assertIsNone(self.M.trim(frames, {**ok, 2.0: False}, first, last))
+        # a glitch on the frame the "before" hold freezes (SLA-1728, RSG0023 take 1): no morph, a new clip
+        self.assertIsNone(self.M.trim(frames, {**ok, 1.0: False}, first, last))
+        self.assertIsNone(self.M.trim(frames, ok, first, last, start=2.25), "the held frame is already half-way: no \"before\"")
+
+    def test_the_before_holds_still_first(self):
+        self.assertEqual(self.M.hold_for(self.M.PLAY), self.M.HOLD)
+        self.assertEqual(self.M.hold_for(0.8), 0.2, "a short hook keeps most of its time for the glow-up")
+
+    def test_before_still_retries_then_falls_back_to_grok_and_never_skips_the_morph(self):
+        import rfg_morph as M
+        calls, real = [], (M.gen_before, M.align, L.chat_json)
+        def gen(last, out, gender, cfg):
+            calls.append(cfg["model"])
+            if cfg["api"] == "chat":
+                raise M.Refused("blocked")
+            open(out, "wb").write(b"img")
+            return 0.07
+        verdicts = iter([{"same_person": True, "visible": False}, {"same_person": True, "visible": False}])
+        M.gen_before, M.align, L.chat_json = gen, (lambda src, dst, out: shutil.copyfile(src, out)), (lambda *a, **k: (next(verdicts), 0.001))
+        work = os.path.join(TMP, "before")
+        os.makedirs(work, exist_ok=True)
+        try:
+            out, change, usd, notes = M.before(os.path.join(work, "last.jpg"), work, "M")
+        finally:
+            M.gen_before, M.align, L.chat_json = real
+        self.assertEqual(calls, [M.BEFORE_MODELS[0]["model"]] + [M.BEFORE_MODELS[1]["model"]] * M.BEFORE_TRIES, "Gemini refused: Grok, with a retry")
+        self.assertTrue(out and os.path.exists(out), "no take passed: the last one plays anyway (mandatory morph)")
+        self.assertEqual(change, M.FALLBACK_CHANGE)
+        self.assertIn("forced", notes[-1])
+        self.assertAlmostEqual(usd, 0.142)
+
+    @unittest.skipUnless(Image, "needs PIL, numpy and OpenCV (reel-factory's pylib)")
+    def test_hold_pads_the_clip_with_its_first_frame(self):
+        import numpy as np
+        import cv2
+        take, out = os.path.join(TMP, "take.mp4"), os.path.join(TMP, "held.mp4")
+        try:
+            L.ff("ffmpeg")
+        except L.Fatal:
+            self.skipTest("no ffmpeg")
+        w = cv2.VideoWriter(take, cv2.VideoWriter_fourcc(*"mp4v"), 24, (64, 112))
+        for i in range(72):
+            w.write(np.full((112, 64, 3), min(255, i * 4), np.uint8))
+        w.release()
+        op = self.M.hold(take, (1.0, 2.5, 1.5), self.M.PLAY, out)
+        self.assertEqual(op[0], 0.0)
+        self.assertAlmostEqual(op[1], self.M.HOLD * 1.5 + 1.5, delta=0.1)
+        self.assertAlmostEqual(self.M.clip_seconds(out), op[1] + 1 / 24, delta=0.1)
 
     def test_render_job_plays_the_decided_clip_and_the_cover_comes_after_it(self):
         t = seed_topic("RSG0001")

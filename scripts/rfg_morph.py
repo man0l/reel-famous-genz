@@ -1,26 +1,27 @@
 """SLA-1728: the clip morph opener of a celebrity reel (reel-factory's facemetric opener, board 27 Nov 2026: "use the same approach").
 
-The full-frame hook shows the painted Commons portrait from frame 0. With the morph, the reel opens on the real Commons photo instead and a
-first/last-frame video clip (OpenRouter /videos) turns it into the painted portrait in about PLAY s, then cuts to the portrait still: the
-viewer sees who it is, then the edit. Every celebrity reel morphs (board, 27 Nov 2026: "it is mandatory to morph the genz reels").
+The full-frame hook shows the painted Commons portrait from frame 0. With the morph, the reel opens on a "before glow-up" version of that
+portrait (same face, pose and painted style, worse grooming) and a first/last-frame video clip (OpenRouter /videos) glows it up into the
+portrait, then cuts to the portrait still: a real before/after, @glowupmenclub style. Every celebrity reel morphs (board, 27 Nov 2026: "it is
+mandatory to morph the genz reels"; the photo → painting morph read as a filter fading in, so the board took the glow-up the same day).
 auto() runs before every render of a celebrity reel:
 
-  what   the topic's Commons photo, aligned onto the cutout with MediaPipe's face mesh (a similarity transform: same eyes, nose and mouth
-         position) and cut to the portrait's silhouette over a flat background; the last frame is the cutout over the same background, in
-         the hook's own frame position (beats[0].crop), so the composition plays the clip under the cutout's alpha and lands on the still
-  model  MODELS in order, Grok Imagine Video first: it takes public figures' photos that Veo refused (MrBeast). Veo is not used (board,
-         27 Nov: "dont use veo"). A refusal moves on to the next model
-  turn   when the photo's head direction differs from the portrait's (mesh fit above TURN_FIT, or the vision model says so), the clip
-         also turns the head to the portrait's pose, and the check expects that turn
+  last   the cutout over a flat background in the hook's own frame position (beats[0].crop), so the composition plays the clip under the
+         cutout's alpha and lands on the still
+  before BEFORE_MODELS in order (Gemini, then Grok Imagine Image when Gemini refuses) repaint the last frame with worse grooming (messy
+         flat hair, patchy beard, ungroomed brows, dull skin, flat light), aligned back onto it with MediaPipe's face mesh. A vision check
+         wants the same person and a difference a viewer sees at phone size; one retry per model
+  model  MODELS in order, Grok Imagine Video first. Veo is not used (board, 27 Nov: "dont use veo"). A refusal moves on to the next model
   check  the clip's frames are checked (blink, mouth, camera move, hands, broken face, a different person), trimmed to the clean stretch
-         that reaches the portrait; a failed check gets a new clip, up to TRIES clips. When none is clean the last take still plays
-         (trimmed as if clean, `forced` in morph.json) so the reel never loses its morph; look at those by eye
+         that reaches the portrait, holding the "before" HOLD s first (the clip is padded with its first frame when it changes too early);
+         a failed check gets a new clip, up to TRIES clips. When none is clean the last take still plays (trimmed as if clean, `forced` in
+         morph.json) so the reel never loses its morph; look at those by eye
 
-The decision is kept in work/<id>/morph.json and the clip in work/<id>/morph/clip.mp4, so a re-render costs nothing; `rfg.sh morph <id>
---redo` decides again. A new cutout or photo (restyle) also decides again. RFG_MORPH=off skips it. About $0.26 a clip and a cent of checks.
-Needs PIL, numpy, OpenCV and mediapipe (reel-factory's pylib, put on PYTHONPATH by rfg.sh) and models/face_landmarker.task in the data
-home; without them the reel keeps its still hook."""
-import hashlib, io, json, os, shutil, time, urllib.error, urllib.request
+The decision is kept in work/<id>/morph.json, the "before" in work/<id>/morph/before.jpg and the clip in work/<id>/morph/clip.mp4, so a
+re-render costs nothing; `rfg.sh morph <id> --redo` decides again. A new cutout (restyle) also decides again. RFG_MORPH=off skips it. About
+$0.07 for the "before", $0.26 a clip and a cent of checks. Needs PIL, numpy, OpenCV and mediapipe (reel-factory's pylib, put on PYTHONPATH
+by rfg.sh) and models/face_landmarker.task in the data home; without them the reel keeps its still hook."""
+import base64, hashlib, json, os, shutil, subprocess, time, urllib.error, urllib.request
 
 import rfg_lib as L
 
@@ -29,38 +30,52 @@ MODELS = L.CFG.get("morph", {}).get("models") or [
     {"model": "x-ai/grok-imagine-video-1.5", "seconds": 3, "resolution": "480p", "usd_per_clip": 0.26},
     {"model": "minimax/hailuo-3-max", "seconds": 5, "resolution": "480p", "usd_per_clip": 0.25}]
 MCFG = MODELS[0]
+# the "before glow-up" still: image edit models in order (Gemini via chat completions, Grok Imagine Image via /images/generations)
+BEFORE_MODELS = L.CFG.get("morph", {}).get("before_models") or [
+    {"model": L.CFG["restyle"]["model"], "api": "chat"},
+    {"model": "x-ai/grok-imagine-image-2.0", "api": "images"}]
+BEFORE_TRIES = 2              # "before" stills per model at most (the vision check rejected the first)
 TRIES = 3                     # clips per reel at most (a refusal moves on to the next model)
-TURN_FIT = 0.05               # mesh fit above this: the photo's head is turned against the portrait's, the clip turns it
 FRAME = (1080, 1920)          # the reel frame
 VEO = (720, 1280)             # the first/last frames sent to the model (9:16; the composition fills the reel frame with the clip)
 HOOK_CROP = {"w": 1400, "x": -160, "y": 250}   # engine theme.ts HOOK_FULL.crop
 BG = (34, 12, 48)             # flat background behind both frames (masked away by the cutout's alpha in the reel)
-PLAN, CLIP = "morph.json", "morph/clip.mp4"
-PLAY = 1.8                    # seconds the trimmed clip plays for
+PLAN, CLIP, BEFORE = "morph.json", "morph/clip.mp4", "morph/before.jpg"
+KIND = "glowup"               # morph.json keys start with it: a decision of the old photo → painting morph is made again
+PLAY = 2.3                    # seconds the trimmed clip plays for: the "before" held HOLD s, then the glow-up
+HOLD = 0.3                    # the "before" shows still this long so it registers
 HOOK_HOLD = 0.6               # the still shows at least this long before the first feature cut
 RATE = (1.0, 2.0)             # playback speed range
 MIN_PLAY = 0.8                # a clean stretch shorter than this (played) is no morph
 LAND_GAP = 0.03               # the cut to the portrait may jump at most this mean grey level in the changing area
-PROMPT = ("Locked-off static camera, head-and-shoulders portrait on a plain dark purple background. The same person keeps the same pose, "
-          "head position and expression for the whole clip while %s, a smooth continuous morph from the first frame into the last frame. "
-          "No camera movement, no head movement, no blinking, no talking, no hands or objects entering the frame, no text.")
-PROMPT_TURN = ("Locked-off static camera, head-and-shoulders portrait on a plain dark purple background. The same person slowly and smoothly "
-               "turns the head to the exact pose of the last frame while %s, a smooth continuous morph from the first frame into the last "
-               "frame. The expression stays calm. No camera movement, no blinking, no talking, no hands or objects entering the frame, no text.")
-DECIDE = ("Two head-and-shoulders images for a short-form face-breakdown reel, as they appear full screen on a phone. Image 1 is a real "
-          "photo of the person, image 2 the painted portrait of them the reel's hook shows. The reel opens on a video that morphs image 1 "
-          "into image 2 in about 2 seconds, so the viewer sees the real person turn into the painting. The faces are already aligned (same "
-          "eye, nose and mouth position) and the clothes, hair styling and lighting are expected to change. Answer JSON only: "
-          "{\"turn\": true|false (true when the head direction clearly differs, e.g. a three-quarter view against a frontal face), "
-          "\"change\": \"what changes from image 1 to image 2, as a clause that completes 'while ...', e.g. 'the photo is repainted as a "
-          "smooth digital painting and the suit becomes a navy t-shirt', at most 20 words\"}")
+GROOM = {
+    "M": ("messy, flat, unwashed-looking hair with no shape; a patchy, uneven, untrimmed beard or stubble (keep a clean-shaven face "
+          "clean-shaven but with a faint uneven shadow); thick ungroomed eyebrows with stray hairs; dull, tired, slightly uneven skin with "
+          "mild under-eye shadows; flat dull lighting"),
+    "W": ("unstyled, flat, frizzy hair pulled back carelessly; no makeup at all; ungroomed natural eyebrows; dull, tired, slightly uneven "
+          "skin with mild under-eye shadows; flat dull lighting")}
+BEFORE_PROMPT = ("Edit this painted portrait into the \"before glow-up\" version of the same person, for a before/after reel. Keep exactly "
+                 "the same person and likeness, face shape, eyes, nose, lips, head position, pose, expression, framing, camera distance, "
+                 "clothing, the flat dark purple background and the same painted digital-painting style. Change only the grooming: %s. "
+                 "Not ugly, not ill, not older: the same person on an unkempt day. No text. Vertical 9:16, same composition.")
+BEFORE_CHECK = ("Image 1 is a \"before glow-up\" edit of image 2, a painted portrait, for a before/after reel that morphs image 1 into image "
+                "2 full screen on a phone in about 2 seconds. Answer JSON only: {\"same_person\": true|false (clearly the same person, "
+                "same pose and framing), \"visible\": true|false (a viewer sees the grooming difference at phone size in 2 seconds), "
+                "\"defects\": [str] (broken face, text, a changed background or pose), \"change\": \"what changes from image 1 to image 2, "
+                "as a clause that completes 'while ...', e.g. 'the messy hair gets styled into a clean quiff, the patchy beard is trimmed "
+                "and the skin turns clear and glowing', at most 25 words\"}")
+PROMPT = ("Locked-off static camera, head-and-shoulders painted portrait on a plain dark purple background, a glow-up transformation. The "
+          "same person keeps the same pose, head position and expression for the whole clip while %s, a smooth continuous morph from the "
+          "first frame into the last frame. No camera movement, no head movement, no blinking, no talking, no hands or objects entering "
+          "the frame, no text.")
 CHECK = ("Image 1 is a contact sheet of %d frames (left to right, top to bottom, each labelled with its second) from a %d s AI video that "
-         "morphs a real photo of a person from its first frame into image 2 (the painted portrait it must land on). The intended change: "
-         "%s. That change, including the soft blend while it happens and %s, is expected: never flag it. For every frame flag only what "
-         "a viewer would see as a mistake: closed or half-closed eyes (a blink), a squint, a new smile, an open or moving mouth, %sa camera "
-         "move or zoom, hands or objects, text, or a broken face (melting, doubled or missing features). Answer JSON only: "
-         "{\"frames\": [{\"t\": 0.25, \"ok\": true, \"issue\": \"\"}, ...], \"change_starts\": <the second label of the first frame where "
-         "the intended change is visibly under way>, \"same_person\": true|false (false only when the face clearly becomes someone else)}")
+         "glows up a \"before\" version of a painted portrait from its first frame into image 2 (the portrait it must land on). The "
+         "intended change: %s. That change, including the soft blend while it happens and %s, is expected: never flag it. For every frame "
+         "flag only what a viewer would see as a mistake: closed or half-closed eyes (a blink), a squint, a new smile, an open or moving "
+         "mouth, %sa camera move or zoom, hands or objects, text, or a broken face (melting, doubled or missing features). Answer JSON "
+         "only: {\"frames\": [{\"t\": 0.25, \"ok\": true, \"issue\": \"\"}, ...], \"change_starts\": <the second label of the first frame "
+         "where the intended change is visibly under way>, \"same_person\": true|false (false only when the face clearly becomes someone "
+         "else)}")
 
 
 class Unavailable(Exception):
@@ -122,7 +137,7 @@ def mesh(rgb):
 
 
 def fit(src_pts, dst_pts):
-    """Similarity transform (2x3) taking the photo's mesh onto the portrait's, and its median error over the eye distance."""
+    """Similarity transform (2x3) taking one image's face mesh onto another's, and its median error over the eye distance."""
     import cv2
     import numpy as np
     m, _ = cv2.estimateAffinePartial2D(src_pts, dst_pts, method=cv2.LMEDS)
@@ -133,68 +148,98 @@ def fit(src_pts, dst_pts):
     return m, float(np.median(np.linalg.norm(moved - dst_pts, axis=1)) / eyes)
 
 
-def person(rgb, face, alpha, scale=0.5):
-    """0-1 mask of the person in the aligned photo (OpenCV GrabCut): the face mesh's hull is the person for sure, outside the portrait's
-    silhouette is background for sure, the rest is guessed. The photo's own background (a red-carpet wall) then does not show inside the
-    silhouette where the painted hair is fuller than the photo's."""
-    import cv2
-    import numpy as np
-    h, w = alpha.shape
-    sw, sh = round(w * scale), round(h * scale)
-    img = cv2.resize(rgb, (sw, sh), interpolation=cv2.INTER_AREA)
-    a = cv2.resize(alpha, (sw, sh), interpolation=cv2.INTER_AREA)
-    m = np.where(a > 0.5, cv2.GC_PR_FGD, cv2.GC_BGD).astype(np.uint8)
-    hull = cv2.convexHull((face * scale).astype(np.int32))
-    core = np.zeros_like(m)
-    cv2.fillConvexPoly(core, hull, 1)
-    m[core > 0] = cv2.GC_FGD
-    try:
-        cv2.grabCut(cv2.cvtColor(img, cv2.COLOR_RGB2BGR), m, None, np.zeros((1, 65)), np.zeros((1, 65)), 5, cv2.GC_INIT_WITH_MASK)
-    except cv2.error:
-        return np.ones_like(alpha)
-    fg = np.isin(m, (cv2.GC_FGD, cv2.GC_PR_FGD)).astype(np.float32)
-    fg = cv2.GaussianBlur(cv2.resize(fg, (w, h), interpolation=cv2.INTER_LINEAR), (0, 0), 3)
-    return np.clip(fg, 0, 1)
+def last_frame(script, cut, work):
+    """last.jpg: the portrait over BG in the hook's own frame position, a whole reel frame at the clip's size."""
+    from PIL import Image
+    x, y, w, h = hook_rect(script)
+    co = Image.open(cut).convert("RGBA")
+    layer = Image.new("RGBA", FRAME, (0, 0, 0, 0))
+    layer.paste(co.resize((round(w), round(h)), Image.LANCZOS), (round(x), round(y)))
+    os.makedirs(work, exist_ok=True)
+    lp = os.path.join(work, "last.jpg")
+    Image.alpha_composite(Image.new("RGBA", FRAME, BG + (255,)), layer).convert("RGB").resize(VEO, Image.LANCZOS).save(lp, "JPEG", quality=92)
+    return lp
 
 
-def frames(script, photo, cut, work):
-    """first.jpg (the photo aligned onto the portrait, in its silhouette) and last.jpg (the portrait), both full reel frames at the clip's
-    size over BG. Returns (first, last, fit error), or (None, None, why) when a face is not found."""
+def align(src, dst, out):
+    """Writes `src` (an edit of `dst`) moved onto `dst` with a similarity transform on MediaPipe's face mesh, at VEO size, so the clip's
+    first and last frames have the face in the same place. Returns the fit error, or None when a face is not found (written unmoved)."""
     import cv2
     import numpy as np
     from PIL import Image
-    x, y, w, h = hook_rect(script)
-    W, H = FRAME
-    co = Image.open(cut).convert("RGBA")
-    sx = w / co.width
-    canvas = Image.new("RGBA", FRAME, BG + (255,))
-    placed = co.resize((round(w), round(h)), Image.LANCZOS)
-    layer = Image.new("RGBA", FRAME, (0, 0, 0, 0))
-    layer.paste(placed, (round(x), round(y)))
-    alpha = np.asarray(layer)[:, :, 3].astype(float) / 255
-    last = Image.alpha_composite(canvas, layer).convert("RGB")
-    ph = np.asarray(Image.open(photo).convert("RGB"))
-    a = mesh(ph)
-    if a is None:
-        return None, None, "no face found in the photo"
-    on_grey = Image.alpha_composite(Image.new("RGBA", co.size, (128, 128, 128, 255)), co).convert("RGB")
-    b = mesh(np.asarray(on_grey))
-    if b is None:
-        return None, None, "no face found in the portrait"
-    b = b * sx + np.array([x, y])
-    m, err = fit(a, b)
-    if m is None:
-        return None, None, "the photo's face does not fit the portrait's"
-    warped = cv2.warpAffine(ph, m, (W, H), flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE)
-    keep = alpha * person(warped, a @ m[:, :2].T + m[:, 2], alpha)
-    bg = np.empty_like(warped)
-    bg[:] = BG
-    first = (warped * keep[:, :, None] + bg * (1 - keep[:, :, None])).astype(np.uint8)
-    os.makedirs(work, exist_ok=True)
-    fp, lp = os.path.join(work, "first.jpg"), os.path.join(work, "last.jpg")
-    Image.fromarray(first).resize(VEO, Image.LANCZOS).save(fp, "JPEG", quality=92)
-    last.resize(VEO, Image.LANCZOS).save(lp, "JPEG", quality=92)
-    return fp, lp, round(err, 4)
+    s = np.asarray(Image.open(src).convert("RGB").resize(VEO, Image.LANCZOS))
+    a, b = mesh(s), mesh(np.asarray(Image.open(dst).convert("RGB")))
+    m, err = fit(a, b) if a is not None and b is not None else (None, None)
+    if m is not None:
+        s = cv2.warpAffine(s, m, VEO, flags=cv2.INTER_LANCZOS4, borderMode=cv2.BORDER_REPLICATE)
+    Image.fromarray(s).save(out, "JPEG", quality=92)
+    return round(err, 4) if m is not None else None
+
+
+def gen_before(last, out, gender, cfg):
+    """One "before glow-up" edit of `last` on image model `cfg` (a BEFORE_MODELS entry). Returns the API cost; raises Refused when the
+    model refuses or returns no image, L.Fatal on an HTTP error."""
+    prompt = BEFORE_PROMPT % GROOM.get(gender, GROOM["M"])
+    ref = {"type": "image_url", "image_url": {"url": L.durl(last)}}
+    if cfg.get("api") == "images":
+        j = _call("/images/generations", {"model": cfg["model"], "prompt": prompt, "n": 1, "aspect_ratio": "9:16", "input_references": [ref]})
+        d = (j.get("data") or [{}])[0]
+        cost = (j.get("usage") or {}).get("cost") or 0
+        if d.get("b64_json"):
+            data = base64.b64decode(d["b64_json"])
+        elif d.get("url"):
+            data = urllib.request.urlopen(d["url"], timeout=120).read() if d["url"].startswith("http") else base64.b64decode(d["url"].split(",", 1)[1])
+        else:
+            L.spend("image", cost)
+            raise Refused("no image: %s" % json.dumps(j)[:200])
+    else:
+        j = _call("/chat/completions", {"model": cfg["model"], "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}, ref]}],
+                                        "modalities": ["image", "text"], "usage": {"include": True}, "image_config": {"aspect_ratio": "9:16"}})
+        cost = (j.get("usage") or {}).get("cost") or 0
+        try:
+            data = base64.b64decode(j["choices"][0]["message"]["images"][0]["image_url"]["url"].split(",", 1)[1])
+        except (KeyError, IndexError, TypeError, ValueError):
+            L.spend("image", cost)
+            raise Refused("no image: %s" % json.dumps(j)[:200])
+    L.spend("image", cost)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    open(out, "wb").write(data)
+    return cost
+
+
+FALLBACK_CHANGE = "the messy hair gets styled, the brows are groomed and the dull skin turns clear and glowing"
+
+
+def before(last, work, gender):
+    """(before.jpg or None, change clause or why not, usd, notes): the "before glow-up" still, aligned onto `last` and checked. When no
+    take passes, the last one made is used anyway (mandatory morph; the note says "forced"); None only when every model refused."""
+    usd, notes, made = 0.0, [], False
+    out = os.path.join(work, "before.jpg")
+    for cfg in BEFORE_MODELS:
+        for i in range(BEFORE_TRIES):
+            raw = os.path.join(work, "before_raw.png")
+            try:
+                usd += gen_before(last, raw, gender, cfg)
+            except Refused as e:
+                notes.append("%s refused: %s" % (cfg["model"], str(e)[:120]))
+                break
+            except L.Fatal as e:
+                notes.append("%s: %s" % (cfg["model"], str(e)[:120]))
+                break
+            align(raw, last, out)
+            made = True
+            j, c = L.chat_json(BEFORE_CHECK, [out, last])
+            usd += c
+            change = " ".join(str(j.get("change") or "").split()).rstrip(".")
+            if j.get("same_person") and j.get("visible") and not j.get("defects") and change:
+                notes.append("%s: ok" % cfg["model"])
+                return out, change, usd, notes
+            notes.append("%s take %d: %s" % (cfg["model"], i + 1, "; ".join(
+                [k for k in ("same_person", "visible") if not j.get(k)] + [str(d) for d in j.get("defects") or []]) or j.get("notes") or "no change"))
+    if made:
+        notes.append("forced: no take passed, the last one is used")
+        return out, FALLBACK_CHANGE, usd, notes
+    return None, "no \"before\" still: %s" % " | ".join(notes), usd, notes
 
 
 # ------------------------------------------------------------------ the clip
@@ -204,15 +249,15 @@ def _call(url, body=None):
     try:
         return json.load(urllib.request.urlopen(req, timeout=120))
     except urllib.error.HTTPError as e:
-        raise L.Fatal("video API HTTP %s %s" % (e.code, e.read()[:300].decode(errors="replace")))
+        raise L.Fatal("OpenRouter HTTP %s %s" % (e.code, e.read()[:300].decode(errors="replace")))
 
 
-def gen_clip(first, last, change, out, timeout=900, cfg=None, turn=False):
+def gen_clip(first, last, change, out, timeout=900, cfg=None):
     """One first/last-frame clip on model `cfg` (a MODELS entry; OpenRouter /videos, submit then poll). Writes the MP4, returns the
     API-reported cost."""
     L.need_env("OPEN_ROUTER_API_KEY")
     cfg = cfg or MCFG
-    j = _call("/videos", {"model": cfg["model"], "prompt": (PROMPT_TURN if turn else PROMPT) % change, "duration": cfg["seconds"],
+    j = _call("/videos", {"model": cfg["model"], "prompt": PROMPT % change, "duration": cfg["seconds"],
                           "aspect_ratio": "9:16", "resolution": cfg["resolution"], "generate_audio": False,
                           "frame_images": [{"type": "image_url", "image_url": {"url": L.durl(first)}, "frame_type": "first_frame"},
                                            {"type": "image_url", "image_url": {"url": L.durl(last)}, "frame_type": "last_frame"}]})
@@ -273,11 +318,17 @@ def contact_sheet(frames, out, cols=4, size=(180, 320)):
     return out
 
 
+def hold_for(play):
+    """Seconds the "before" shows still at the start of a clip that plays `play` s: HOLD, a quarter of a short one."""
+    return round(min(HOLD, play / 4), 2)
+
+
 def trim(frames, ok, first, last, start=None, play=PLAY):
     """(in, out, rate) of the clean stretch of the clip that reaches the portrait, else None. `ok` = {t: clean}; a frame's progress is
     how far it is from the first frame towards the last (0-1) in the area that changes: `in` is a quarter second before the change starts
     (`start`, the vision check's frame, else measured), `out` the last clean frame before the first unclean one after `in`, which must be
-    at least 85 % of the way or close enough to the portrait (LAND_GAP) that the cut to it does not jump."""
+    at least 85 % of the way or close enough to the portrait (LAND_GAP) that the cut to it does not jump. `rate` plays in → out in
+    `play` less the "before" hold (hold_for), which hold() puts in front, so the `in` frame must be clean and under 30 % of the way."""
     import numpy as np
     a, z = _grey(first), _grey(last)
     diff = abs(a - z)
@@ -296,6 +347,9 @@ def trim(frames, ok, first, last, start=None, play=PLAY):
     else:
         t_in = max([0.0] + [t for t in ts if prog[t] < 0.15 and t < late])
         t_in = max(0.0, round(t_in - 0.25, 2)) if t_in else 0.0
+    t_in = max([0.0] + [t for t in ts if t <= t_in])
+    if t_in > 0 and (not ok.get(t_in, False) or prog[t_in] > 0.3):
+        return None                     # hold() freezes the `in` frame as the "before": it must be clean and still look like it
     t_out = None
     for t in ts:
         if t <= t_in:
@@ -305,10 +359,41 @@ def trim(frames, ok, first, last, start=None, play=PLAY):
         t_out = t
     if t_out is None or (prog.get(t_out, 0) < 0.85 and gap.get(t_out, 1) > LAND_GAP):
         return None
-    rate = min(RATE[1], max(RATE[0], (t_out - t_in) / play))
-    if (t_out - t_in) / rate < MIN_PLAY:
+    rate = min(RATE[1], max(RATE[0], (t_out - t_in) / (play - hold_for(play))))
+    if (t_out - t_in) / rate < MIN_PLAY - hold_for(play):
         return None
     return t_in, t_out, round(rate, 2)
+
+
+def hold(take, tr, play, out):
+    """Writes the clip the reel plays: frame `in` of `take` held still for the "before" hold (hold_for(play) played), then `in` → `out`.
+    Returns the opener's (in, out, rate) on the new clip (in is 0)."""
+    import cv2
+    t_in, t_out, rate = tr
+    cap = cv2.VideoCapture(take)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 24
+    cap.set(cv2.CAP_PROP_POS_MSEC, t_in * 1000)
+    frames = []
+    while True:
+        ok, fr = cap.read()
+        if not ok or len(frames) > (t_out - t_in) * fps + 1:
+            break
+        frames.append(fr)
+    cap.release()
+    if not frames:
+        raise L.Fatal("could not read %s from %.2f s" % (take, t_in))
+    n = round(hold_for(play) * rate * fps)
+    pad = n / fps
+    cmd, env = L.ff("ffmpeg")      # Remotion's ffmpeg has no rawvideo demuxer and few filters: PNG frames over image2pipe
+    p = subprocess.Popen(cmd + ["-v", "error", "-y", "-f", "image2pipe", "-c:v", "png", "-framerate", "%.3f" % fps, "-i", "-", "-an",
+                                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "16", "-f", "mp4", out + ".part"], stdin=subprocess.PIPE, env=env)
+    for fr in [frames[0]] * n + frames:
+        p.stdin.write(cv2.imencode(".png", fr)[1].tobytes())
+    p.stdin.close()
+    if p.wait() != 0:
+        raise L.Fatal("ffmpeg could not write %s" % out)
+    os.replace(out + ".part", out)
+    return 0.0, round(pad + (len(frames) - 1) / fps, 2), rate
 
 
 def clip_seconds(clip):
@@ -319,7 +404,7 @@ def clip_seconds(clip):
     return n / fps if n > 0 else MCFG["seconds"]
 
 
-def check_clip(clip, first, last, work, change, play=PLAY, turn=False):
+def check_clip(clip, first, last, work, change, play=PLAY):
     """(trim or None, notes, usd): the vision check of a generated clip, then trim()."""
     secs = clip_seconds(clip)
     times = qa_times(round(secs * 4) / 4)
@@ -327,9 +412,8 @@ def check_clip(clip, first, last, work, change, play=PLAY, turn=False):
     if len(fr) < len(times) - 2:
         return None, "could not read the clip's frames", 0.0
     sheet = contact_sheet(fr, os.path.join(work, "check.jpg"))
-    expected = ("the head turning smoothly to the portrait's pose" if turn
-                else "a slight shift of the head or expression towards the portrait's")
-    j, usd = L.chat_json(CHECK % (len(fr), round(secs), change, expected, "" if turn else "a head turn or tilt, "), [sheet, last])
+    j, usd = L.chat_json(CHECK % (len(fr), round(secs), change, "a slight shift of the head or expression towards the portrait's",
+                                  "a head turn or tilt, "), [sheet, last])
     rows = {round(float(f.get("t", -1)), 2): bool(f.get("ok")) for f in (j.get("frames") or []) if isinstance(f, dict)}
     ok = {t: rows.get(t, False) for t in fr}
     bad = ["%.2f %s" % (round(float(f.get("t", 0)), 2), f.get("issue") or "") for f in j.get("frames") or [] if isinstance(f, dict) and not f.get("ok")]
@@ -348,11 +432,9 @@ def applies(script):
     return b.get("kind") == "hook" and (b.get("layout") or "full") == "full" and b.get("img") in (script.get("ratios") or {})
 
 
-def sources(tid, script):
-    """(photo, cutout) paths of the hook's face."""
-    t = L.topic(tid)
-    cut = L.p("stills", script["assets"][script["beats"][0]["img"]])
-    return L.p("faces", L.slug(t["subject"]), "source.jpg"), cut
+def cutout(script):
+    """The hook face's painted cutout."""
+    return L.p("stills", script["assets"][script["beats"][0]["img"]])
 
 
 def _key(*paths):
@@ -378,9 +460,9 @@ def play_for(durations):
 
 
 def auto(tid, redo=False, tries=TRIES):
-    """Makes the clip morph for reel `tid` (see the module doc) and records it in work/<id>/morph.json. Returns the plan
+    """Makes the glow-up clip morph for reel `tid` (see the module doc) and records it in work/<id>/morph.json. Returns the plan
     {"morph": bool, "why", ...}, or None when it does not apply or cannot run here (the reel keeps its still hook). A recorded
-    no-morph (an old Veo refusal or pose gate, every model refusing) is never final: the next render tries again."""
+    no-morph (no "before" passed, every model refusing) is never final: the next render tries again."""
     if os.environ.get("RFG_MORPH", "").lower() in ("off", "0", "no"):
         return None
     wd = L.p("work", tid)
@@ -395,66 +477,61 @@ def auto(tid, redo=False, tries=TRIES):
     except Unavailable as e:
         L.log("  morph %s: skipped, %s" % (tid, e))
         return None
-    photo, cut = sources(tid, script)
-    if not os.path.exists(photo):
-        L.log("  morph %s: skipped, no photo %s" % (tid, photo))
-        return None
+    cut = cutout(script)
     durs = json.load(open(os.path.join(wd, "durations.json"))) if os.path.exists(os.path.join(wd, "durations.json")) else []
-    key = _key(photo, cut) + "-%s" % json.dumps(script["beats"][0].get("crop") or HOOK_CROP, sort_keys=True)
-    old, clip = plan_of(tid), os.path.join(wd, CLIP)
+    key = "%s-%s-%s" % (KIND, _key(cut), json.dumps(script["beats"][0].get("crop") or HOOK_CROP, sort_keys=True))
+    old, clip, bpath = plan_of(tid), os.path.join(wd, CLIP), os.path.join(wd, BEFORE)
     if not redo and old.get("key") == key and old.get("morph") and os.path.exists(clip):
         return old
-    plan = {"key": key, "morph": False, "usd": 0.0, "play": play_for(durs)}
+    plan = {"key": key, "kind": KIND, "morph": False, "usd": 0.0, "play": play_for(durs)}
     work = os.path.join(wd, "morph")
 
     def done(why, **kw):
         plan.update(why=why, **kw)
         plan["usd"] = round(plan["usd"], 3)
         json.dump(plan, open(os.path.join(wd, PLAN), "w"), indent=1)
-        L.log("  morph %s: %s (%s)" % (tid, "clip opener" if plan["morph"] else "no morph, still hook", why))
+        L.log("  morph %s: %s (%s)" % (tid, "glow-up clip opener" if plan["morph"] else "no morph, still hook", why))
         return plan
 
-    first, last, err = frames(script, photo, cut, work)
-    if first is None:
-        return done(err)
-    plan["fit"] = err
-    j, usd = L.chat_json(DECIDE, [first, last])
-    plan["usd"] += usd
-    plan["change"] = " ".join(str(j.get("change") or "").split()).rstrip(".") or "the photo is repainted as a smooth digital painting"
-    plan["turn"] = bool(j.get("turn")) or err > TURN_FIT
+    last = last_frame(script, cut, work)
+    if not redo and old.get("key") == key and old.get("change") and os.path.exists(bpath):
+        first, plan["change"], plan["before_check"] = bpath, old["change"], old.get("before_check")
+    else:
+        first, change, usd, bnotes = before(last, work, t.get("gender") or "M")
+        plan["usd"] += usd
+        if first is None:
+            return done(change, before_check=bnotes)
+        plan["change"], plan["before_check"] = change, bnotes
     notes, takes, models = [], [], list(MODELS)
-    reuse = not redo and os.path.exists(clip) and old.get("key") == key
     for attempt in range(tries):
         if not models:
             break
         take = os.path.join(work, "take%d.mp4" % (attempt + 1))
-        if attempt == 0 and reuse:
-            shutil.copyfile(clip, take)
-        else:
-            try:
-                plan["usd"] += gen_clip(first, last, plan["change"], take, cfg=models[0], turn=plan["turn"])
-            except Refused as e:
-                notes.append("%s refused: %s" % (models.pop(0)["model"], str(e)[:120]))
-                continue
+        try:
+            plan["usd"] += gen_clip(first, last, plan["change"], take, cfg=models[0])
+        except Refused as e:
+            notes.append("%s refused: %s" % (models.pop(0)["model"], str(e)[:120]))
+            continue
         plan["model"] = models[0]["model"]
-        tr, note, usd = check_clip(take, first, last, work, plan["change"], plan["play"], plan["turn"])
+        tr, note, usd = check_clip(take, first, last, work, plan["change"], plan["play"])
         plan["usd"] += usd
         notes.append(note)
         if tr:
-            os.replace(take, clip)
-            return done("%s; clip %.2f-%.2f s at %.2fx" % (plan["change"], tr[0], tr[1], tr[2]), morph=True,
-                        check=notes, **{"in": tr[0], "out": tr[1], "rate": tr[2]})
+            op = hold(take, tr, plan["play"], clip)
+            return done("%s; clip %.2f-%.2f s at %.2fx after a %.2f s hold" % (plan["change"], tr[0], tr[1], tr[2], hold_for(plan["play"])),
+                        morph=True, check=notes, take={"in": tr[0], "out": tr[1]}, **{"in": op[0], "out": op[1], "rate": op[2]})
         takes.append((0 if note == "clean" else len(note.split("; ")), take, models[0]["model"]))
     if not takes:
-        return done("every video model refused the photo: %s" % " | ".join(notes), check=notes)
+        return done("every video model refused: %s" % " | ".join(notes), check=notes)
     # mandatory morph: the take with the fewest flagged frames plays, trimmed as if clean
     _, take, plan["model"] = min(takes)
     fr = clip_frames(take, qa_times(round(clip_seconds(take) * 4) / 4))
     ts = sorted(fr)
-    tr = trim(fr, {t: True for t in ts}, first, last, None, plan["play"]) or (0.0, ts[-1], round(min(RATE[1], max(RATE[0], ts[-1] / plan["play"])), 2))
-    os.replace(take, clip)
+    tr = trim(fr, {t: True for t in ts}, first, last, None, plan["play"]) or (
+        0.0, ts[-1], round(min(RATE[1], max(RATE[0], ts[-1] / (plan["play"] - hold_for(plan["play"])))), 2))
+    op = hold(take, tr, plan["play"], clip)
     return done("%s; no clean take in %d, the best one plays: clip %.2f-%.2f s at %.2fx" % (plan["change"], len(takes), tr[0], tr[1], tr[2]),
-                morph=True, forced=True, check=notes, **{"in": tr[0], "out": tr[1], "rate": tr[2]})
+                morph=True, forced=True, check=notes, take={"in": tr[0], "out": tr[1]}, **{"in": op[0], "out": op[1], "rate": op[2]})
 
 
 def opener(tid):
