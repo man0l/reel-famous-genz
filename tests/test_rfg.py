@@ -488,6 +488,9 @@ class Morph(Base):
         self.assertEqual(self.M.trim(frames, {**ok, 3.25: False}, first, last)[1], 3.0)
         # a glitch half-way: the clip never reaches the portrait, no morph
         self.assertIsNone(self.M.trim(frames, {**ok, 2.0: False}, first, last))
+        # a glitch on the frame the "before" hold freezes (SLA-1728, RSG0023 take 1): no morph, a new clip
+        self.assertIsNone(self.M.trim(frames, {**ok, 1.0: False}, first, last))
+        self.assertIsNone(self.M.trim(frames, ok, first, last, start=2.25), "the held frame is already half-way: no \"before\"")
 
     def test_the_before_holds_still_first(self):
         self.assertEqual(self.M.hold_for(self.M.PLAY), self.M.HOLD)

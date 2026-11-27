@@ -328,7 +328,7 @@ def trim(frames, ok, first, last, start=None, play=PLAY):
     how far it is from the first frame towards the last (0-1) in the area that changes: `in` is a quarter second before the change starts
     (`start`, the vision check's frame, else measured), `out` the last clean frame before the first unclean one after `in`, which must be
     at least 85 % of the way or close enough to the portrait (LAND_GAP) that the cut to it does not jump. `rate` plays in → out in
-    `play` less the "before" hold (hold_for), which hold() puts in front."""
+    `play` less the "before" hold (hold_for), which hold() puts in front, so the `in` frame must be clean and under 30 % of the way."""
     import numpy as np
     a, z = _grey(first), _grey(last)
     diff = abs(a - z)
@@ -347,6 +347,9 @@ def trim(frames, ok, first, last, start=None, play=PLAY):
     else:
         t_in = max([0.0] + [t for t in ts if prog[t] < 0.15 and t < late])
         t_in = max(0.0, round(t_in - 0.25, 2)) if t_in else 0.0
+    t_in = max([0.0] + [t for t in ts if t <= t_in])
+    if t_in > 0 and (not ok.get(t_in, False) or prog[t_in] > 0.3):
+        return None                     # hold() freezes the `in` frame as the "before": it must be clean and still look like it
     t_out = None
     for t in ts:
         if t <= t_in:
